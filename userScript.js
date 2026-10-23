@@ -1,4 +1,4 @@
-/* Tizenfy 1.1.6 per Samsung Tizen 5.0 (Chromium M63) */
+/* Tizenfy 1.1.7 per Samsung Tizen 5.0 (Chromium M63) */
 if (window.top === window && !window.__tzPolyfill) { window.__tzPolyfill = true;
 /**
  * core-js 3.38.1
@@ -1611,9 +1611,9 @@ a=new RegExp(r.source,O(r));break;case"Error":switch(i=r.name){case"AggregateErr
             try {
               let lines = (e.stack + "").split("\n");
               lines.splice(1, 1);
-              let location = parseStackLinesV8(streamIn, lines, ident);
-              if (location) {
-                note = { text: e.message, location };
+              let location2 = parseStackLinesV8(streamIn, lines, ident);
+              if (location2) {
+                note = { text: e.message, location: location2 };
                 return note;
               }
             } catch (e2) {
@@ -1622,16 +1622,16 @@ a=new RegExp(r.source,O(r));break;case"Error":switch(i=r.name){case"AggregateErr
         }
         function extractErrorMessageV8(e, streamIn, stash, note, pluginName) {
           let text = "Internal error";
-          let location = null;
+          let location2 = null;
           try {
             text = (e && e.message || e) + "";
           } catch (e2) {
           }
           try {
-            location = parseStackLinesV8(streamIn, (e.stack + "").split("\n"), "");
+            location2 = parseStackLinesV8(streamIn, (e.stack + "").split("\n"), "");
           } catch (e2) {
           }
-          return { id: "", pluginName, text, location, notes: note ? [note] : [], detail: stash ? stash.store(e) : -1 };
+          return { id: "", pluginName, text, location: location2, notes: note ? [note] : [], detail: stash ? stash.store(e) : -1 };
         }
         function parseStackLinesV8(streamIn, lines, ident) {
           let at = "    at ";
@@ -1703,18 +1703,18 @@ ${file}:${line}:${column}: ERROR: ${pluginText}${e.text}`;
           }
           return messages;
         }
-        function sanitizeLocation(location, where) {
-          if (location == null)
+        function sanitizeLocation(location2, where) {
+          if (location2 == null)
             return null;
           let keys = {};
-          let file = getFlag(location, keys, "file", mustBeString);
-          let namespace = getFlag(location, keys, "namespace", mustBeString);
-          let line = getFlag(location, keys, "line", mustBeInteger);
-          let column = getFlag(location, keys, "column", mustBeInteger);
-          let length = getFlag(location, keys, "length", mustBeInteger);
-          let lineText = getFlag(location, keys, "lineText", mustBeString);
-          let suggestion = getFlag(location, keys, "suggestion", mustBeString);
-          checkForInvalidFlags(location, keys, where);
+          let file = getFlag(location2, keys, "file", mustBeString);
+          let namespace = getFlag(location2, keys, "namespace", mustBeString);
+          let line = getFlag(location2, keys, "line", mustBeInteger);
+          let column = getFlag(location2, keys, "column", mustBeInteger);
+          let length = getFlag(location2, keys, "length", mustBeInteger);
+          let lineText = getFlag(location2, keys, "lineText", mustBeString);
+          let suggestion = getFlag(location2, keys, "suggestion", mustBeString);
+          checkForInvalidFlags(location2, keys, where);
           return {
             file: file || "",
             namespace: namespace || "",
@@ -1733,7 +1733,7 @@ ${file}:${line}:${column}: ERROR: ${pluginText}${e.text}`;
             let id = getFlag(message, keys, "id", mustBeString);
             let pluginName = getFlag(message, keys, "pluginName", mustBeString);
             let text = getFlag(message, keys, "text", mustBeString);
-            let location = getFlag(message, keys, "location", mustBeObjectOrNull);
+            let location2 = getFlag(message, keys, "location", mustBeObjectOrNull);
             let notes = getFlag(message, keys, "notes", mustBeArray);
             let detail = getFlag(message, keys, "detail", canBeAnything);
             let where = `in element ${index} of "${property}"`;
@@ -1755,7 +1755,7 @@ ${file}:${line}:${column}: ERROR: ${pluginText}${e.text}`;
               id: id || "",
               pluginName: pluginName || fallbackPluginName,
               text: text || "",
-              location: sanitizeLocation(location, where),
+              location: sanitizeLocation(location2, where),
               notes: notesClone,
               detail: stash ? stash.store(detail) : -1
             });
@@ -46673,6 +46673,24 @@ ${file}:${line}:${column}: ERROR: ${pluginText}${e.text}`;
       });
     };
   })();
+  if (typeof DataView.prototype.setBigUint64 !== "function") {
+    Object.defineProperty(DataView.prototype, "setBigUint64", {
+      configurable: true,
+      writable: true,
+      value: function(offset, value, littleEndian) {
+        const v = Number(value);
+        const hi = Math.floor(v / 4294967296) >>> 0;
+        const lo = v - Math.floor(v / 4294967296) * 4294967296 >>> 0;
+        if (littleEndian) {
+          this.setUint32(offset, lo, true);
+          this.setUint32(offset + 4, hi, true);
+        } else {
+          this.setUint32(offset, hi, false);
+          this.setUint32(offset + 4, lo, false);
+        }
+      }
+    });
+  }
 
   // loader.js
   (function() {
@@ -46696,7 +46714,7 @@ ${file}:${line}:${column}: ERROR: ${pluginText}${e.text}`;
         box.style.cssText = "position:fixed;left:12px;bottom:12px;width:62%;max-height:88%;overflow:hidden;z-index:2147483647;background:rgba(0,0,0,0.9);color:#fff;font:13px/1.25 monospace;padding:10px;border:3px solid #1db954;white-space:pre-wrap;word-break:break-all;pointer-events:none;";
         document.body.appendChild(box);
       }
-      box.textContent = "TIZENFY 1.1.6\n" + lines.slice(-26).join("\n") + (errors.length ? "\n\nERRORI (" + errors.length + "):\n" + errors.slice(0, 7).join("\n") : "");
+      box.textContent = "TIZENFY 1.1.7\n" + lines.slice(-26).join("\n") + (errors.length ? "\n\nERRORI (" + errors.length + "):\n" + errors.slice(0, 7).join("\n") : "");
     }
     const log = (l) => {
       lines.push(l);
@@ -46868,6 +46886,29 @@ ${file}:${line}:${column}: ERROR: ${pluginText}${e.text}`;
           const nDef = req.m ? Object.keys(req.m).length : -1;
           const nRun = req.c ? Object.keys(req.c).length : -1;
           log("runtime: moduli definiti " + nDef + ", eseguiti " + nRun + ", percorso " + String(req.p).slice(0, 50));
+          const step = (name, fn) => {
+            try {
+              log("prova " + name + ": " + String(fn()).slice(0, 70));
+            } catch (e) {
+              err("prova " + name + ": " + e.name + " " + e.message + " | " + String(e.stack || "").split("\n").filter((l) => /\d+:\d+/.test(l))[0]);
+            }
+          };
+          step("config", () => {
+            const c = req(64287).x(req(89367).I4);
+            return Object.keys(c || {}).slice(0, 5).join(",");
+          });
+          step("buffer", () => req(27080).hp.from("abc", "utf8").toString("hex"));
+          step("totp (atteso 287082)", () => {
+            const m = req(48474);
+            const t = new m._k({ period: 30, algorithm: "SHA1", digits: 6, secret: m.zh.fromHex("3132333435363738393031323334353637383930") });
+            return t.generate({ timestamp: 59e3 });
+          });
+          step("URLSearchParams", () => new URLSearchParams({ a: "1", b: "2" }).toString());
+          step("URL", () => {
+            const u = new URL("/api/token", location.origin);
+            u.search = "x=1";
+            return u.toString();
+          });
           if (req.e) {
             const e0 = req.e;
             req.e = function(id) {
@@ -46952,28 +46993,6 @@ ${file}:${line}:${column}: ERROR: ${pluginText}${e.text}`;
       if (isTarget(node)) hijack(node);
       return origInsert.apply(this, arguments);
     };
-    function lateListeners(target, evName) {
-      const orig = target.addEventListener;
-      target.addEventListener = function(type, fn, opts) {
-        const r = orig.apply(this, arguments);
-        const done = evName === "DOMContentLoaded" ? document.readyState !== "loading" : document.readyState === "complete";
-        if (type === evName && done && fn) {
-          log("avvio tardivo: " + evName);
-          setTimeout(() => {
-            try {
-              const ev = new Event(evName);
-              typeof fn === "function" ? fn.call(target, ev) : fn.handleEvent(ev);
-            } catch (e) {
-              err(evName + ": " + e.name + " " + e.message);
-            }
-          });
-        }
-        return r;
-      };
-    }
-    lateListeners(document, "DOMContentLoaded");
-    lateListeners(window, "DOMContentLoaded");
-    lateListeners(window, "load");
     const netFails = {};
     function netFail(u, why) {
       const k = short(u) + " " + why;
@@ -47018,6 +47037,20 @@ ${file}:${line}:${column}: ERROR: ${pluginText}${e.text}`;
         });
       };
     }
+    (function() {
+      const P = window.Promise, all0 = P.all;
+      let shown = 0;
+      P.all = function() {
+        const p = all0.apply(this, arguments);
+        try {
+          p.then(null, (e) => {
+            if (shown++ < 4) err("Promise.all respinta: " + (e && e.name) + " " + (e && e.message) + " | " + String(e && e.stack || "").split("\n").filter((l) => /\d+:\d+/.test(l))[0]);
+          });
+        } catch (e) {
+        }
+        return p;
+      };
+    })();
     if (!window.__REACT_DEVTOOLS_GLOBAL_HOOK__) {
       let commits = 0;
       window.__REACT_DEVTOOLS_GLOBAL_HOOK__ = {
