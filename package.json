@@ -1,11 +1,12 @@
 {
   "name": "@unboundangel/tizenspotify",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "Ad-free Spotify for Samsung Tizen TVs via TizenBrew",
   "packageType": "mods",
   "websiteURL": "https://open.spotify.com",
   "main": "userScript.js",
   "serviceFile": "service.js",
+  "evaluateScriptOnDocumentStart": true,
   "keys": [
     "MediaPlayPause", "MediaPlay", "MediaPause", "MediaStop",
     "MediaFastForward", "MediaRewind", "MediaTrackNext", "MediaTrackPrevious",
