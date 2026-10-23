@@ -1,4 +1,4 @@
-/* Tizenfy 1.3.2 per Samsung Tizen 5.0 (Chromium M63) */
+/* Tizenfy 1.4.0 per Samsung Tizen 5.0 (Chromium M63) */
 if (window.top === window && !window.__tzPolyfill) { window.__tzPolyfill = true;
 /**
  * core-js 3.38.1
@@ -46868,7 +46868,7 @@ ${file}:${line}:${column}: ERROR: ${pluginText}${e.text}`;
         box.style.display = panelVisible ? "block" : "none";
         document.body.appendChild(box);
       }
-      box.textContent = "TIZENFY 1.3.2\n" + lines.slice(-26).join("\n") + (errors.length ? "\n\nERRORI (" + errors.length + "):\n" + errors.slice(0, 7).join("\n") : "");
+      box.textContent = "TIZENFY 1.4.0\n" + lines.slice(-26).join("\n") + (errors.length ? "\n\nERRORI (" + errors.length + "):\n" + errors.slice(0, 7).join("\n") : "");
     }
     const log = (l) => {
       lines.push(l);
@@ -47205,7 +47205,13 @@ ${file}:${line}:${column}: ERROR: ${pluginText}${e.text}`;
         const tr = st && sm.tracks[st.track];
         if (!tr) return;
         const uri = tr.metadata && tr.metadata.uri || "";
-        setAdMode(tr.content_type === "AD" || /^spotify:ad:/.test(uri), uri.slice(0, 30));
+        const isAd = tr.content_type === "AD" || /^spotify:ad:/.test(uri);
+        setAdMode(isAd, uri.slice(0, 30));
+        if (!isAd && /^spotify:track:/.test(uri)) {
+          const md = tr.metadata, a = md.authors && md.authors[0] || {};
+          const imgs = (md.images || []).slice().sort((x, y) => (y.width || 0) - (x.width || 0));
+          nowTrack({ uri, name: md.name || "", artist: (md.authors || []).map((x) => x.name).join(", "), artistUri: a.uri || "", cover: imgs[0] ? imgs[0].url : "" });
+        }
       } catch (e) {
       }
     }
@@ -47216,6 +47222,7 @@ ${file}:${line}:${column}: ERROR: ${pluginText}${e.text}`;
       if (adMode && (el.playbackRate < 2 || !el.muted)) applyAd(el);
     }, true));
     const cover = { meta: null, state: "none", forced: false, hiddenUntil: 0 };
+    const auth = { token: null, headers: null };
     if (!("mediaSession" in navigator)) {
       const ms = { setActionHandler() {
       }, setPositionState() {
@@ -47275,9 +47282,129 @@ ${file}:${line}:${column}: ERROR: ${pluginText}${e.text}`;
       }
       return false;
     }
+    const CANVAS_HASH = "575138ab27cd5c1b3e54da54d0a7cc8d85485402de26340c2145f0f6bb5e7a9f";
+    const tv = { el: null, track: null, shown: false, cache: {} };
+    function buildTv() {
+      const d = document.createElement("div");
+      d.style.cssText = "position:fixed;top:0;left:0;right:0;bottom:0;z-index:2147483646;background:#000;display:none;overflow:hidden;cursor:none;";
+      d.innerHTML = '<div data-tv="bg" style="position:absolute;top:0;left:0;right:0;bottom:0;background-size:cover;background-position:center 25%;transition:opacity .8s;"></div><video data-tv="video" muted loop playsinline style="position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;display:none;"></video><div style="position:absolute;left:0;right:0;bottom:0;height:55%;background:linear-gradient(to top,rgba(0,0,0,.85),rgba(0,0,0,0));"></div><div style="position:absolute;left:5vw;bottom:7vh;display:flex;align-items:flex-end;"><img data-tv="cover" style="width:20vh;height:20vh;object-fit:cover;border-radius:6px;box-shadow:0 10px 40px rgba(0,0,0,.6);"><div style="margin-left:3vh;max-width:70vw;"><div data-tv="title" style="color:#fff;font:700 5.5vh/1.15 SpotifyMixUITitle,SpotifyMixUI,sans-serif;"></div><div data-tv="artist" style="margin-top:1vh;color:rgba(255,255,255,.8);font:400 3.4vh/1.2 SpotifyMixUI,sans-serif;"></div></div></div>';
+      ["mousedown", "mouseup", "click"].forEach((t) => d.addEventListener(t, (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (t === "click") hideTv();
+      }, true));
+      document.body.appendChild(d);
+      tv.el = d;
+    }
+    const q = (k) => tv.el.querySelector('[data-tv="' + k + '"]');
+    function apiHeaders() {
+      const h = Object.assign({}, auth.headers || {});
+      if (auth.token) h.authorization = "Bearer " + auth.token;
+      h["content-type"] = "application/json;charset=UTF-8";
+      h.accept = "application/json";
+      return h;
+    }
+    async function loadVisuals(t) {
+      const c = tv.cache[t.uri] || (tv.cache[t.uri] = {});
+      if (c.done) return c;
+      c.done = true;
+      try {
+        const r = await origFetch("https://api-partner.spotify.com/pathfinder/v2/query", {
+          method: "POST",
+          headers: apiHeaders(),
+          body: JSON.stringify({ variables: { trackUri: t.uri }, operationName: "canvas", extensions: { persistedQuery: { version: 1, sha256Hash: CANVAS_HASH } } })
+        });
+        const txt = await r.text();
+        const m = txt.match(/https:\/\/canvaz\.scdn\.co\/[^"]+?\.mp4/);
+        if (m) c.video = m[0];
+        log("canvas: " + (m ? "video trovato" : "nessun video") + " (HTTP " + r.status + ")");
+      } catch (e) {
+        log("canvas: errore " + (e && e.message));
+      }
+      if (!c.video && t.artistUri) {
+        const id = t.artistUri.split(":").pop();
+        const ac = tv.cache[t.artistUri] || (tv.cache[t.artistUri] = {});
+        if (!ac.done) {
+          ac.done = true;
+          try {
+            const r = await origFetch("https://api.spotify.com/v1/artists/" + id, { headers: { authorization: "Bearer " + auth.token } });
+            const j = await r.json();
+            const im = (j.images || []).slice().sort((x, y) => (y.width || 0) - (x.width || 0))[0];
+            if (im) ac.image = im.url;
+            log("foto artista: " + (im ? "trovata" : "assente") + " (HTTP " + r.status + ")");
+          } catch (e) {
+            log("foto artista: errore " + (e && e.message));
+          }
+        }
+        c.image = ac.image;
+      }
+      return c;
+    }
+    function paintTv() {
+      if (!tv.el || !tv.track) return;
+      const t = tv.track, c = tv.cache[t.uri] || {};
+      q("title").textContent = t.name;
+      q("artist").textContent = t.artist;
+      if (q("cover").getAttribute("src") !== t.cover && t.cover) q("cover").setAttribute("src", t.cover);
+      const v = q("video");
+      if (c.video) {
+        if (v.getAttribute("src") !== c.video) {
+          v.setAttribute("src", c.video);
+        }
+        v.style.display = "block";
+        if (tv.shown) {
+          const p = v.play();
+          if (p && p.catch) p.catch(() => {
+          });
+        }
+      } else {
+        v.style.display = "none";
+        try {
+          v.pause();
+        } catch (e) {
+        }
+      }
+      const bg = c.image || t.cover;
+      q("bg").style.backgroundImage = bg ? 'url("' + bg + '")' : "";
+      q("bg").style.filter = c.image ? "none" : "blur(40px) brightness(.5)";
+      q("bg").style.transform = c.image ? "none" : "scale(1.2)";
+    }
+    function nowTrack(t) {
+      if (tv.track && tv.track.uri === t.uri) return;
+      tv.track = t;
+      if (!document.body) return;
+      if (!tv.el) buildTv();
+      paintTv();
+      loadVisuals(t).then(() => {
+        if (tv.track === t) paintTv();
+      });
+    }
+    function showTv() {
+      if (!tv.track) return false;
+      if (!tv.el) buildTv();
+      tv.shown = true;
+      tv.el.style.display = "block";
+      paintTv();
+      return true;
+    }
+    function hideTv() {
+      if (!tv.shown) return false;
+      tv.shown = false;
+      tv.el.style.display = "none";
+      try {
+        q("video").pause();
+      } catch (e) {
+      }
+      lastActivity = Date.now();
+      return true;
+    }
     setInterval(() => {
-      if (Date.now() - lastActivity >= IDLE_MS && isPlaying() && openNpv()) log("schermata brano aperta (inattivita)");
+      if (!tv.shown && Date.now() - lastActivity >= IDLE_MS && isPlaying() && showTv()) log("schermo TV aperto (inattivita)");
+      if (tv.shown && !isPlaying() && Date.now() - lastActivity > 6e4) hideTv();
     }, 3e3);
+    ["mousemove", "wheel"].forEach((ev) => document.addEventListener(ev, () => {
+      if (tv.shown) hideTv();
+    }, true));
     const clickTid = (id) => {
       const el = document.querySelector('[data-testid="' + id + '"]');
       if (el) {
@@ -47354,8 +47481,8 @@ ${file}:${line}:${column}: ERROR: ${pluginText}${e.text}`;
         const r = el.getBoundingClientRect(), area = r.width * r.height;
         return !list.some((o) => {
           if (o === el || !el.contains(o)) return false;
-          const q = o.getBoundingClientRect();
-          return q.width * q.height > area * 0.8;
+          const q2 = o.getBoundingClientRect();
+          return q2.width * q2.height > area * 0.8;
         });
       });
     }
@@ -47442,24 +47569,24 @@ ${file}:${line}:${column}: ERROR: ${pluginText}${e.text}`;
       let best = null, bestScore = Infinity;
       c.forEach((el) => {
         if (el === focusEl || el.contains(focusEl) || focusEl.contains(el)) return;
-        const q = el.getBoundingClientRect(), x = q.left + q.width / 2, y = q.top + q.height / 2;
+        const q2 = el.getBoundingClientRect(), x = q2.left + q2.width / 2, y = q2.top + q2.height / 2;
         let p, o;
         if (dir === "left") {
           p = cx - x;
           o = Math.abs(y - cy);
-          if (q.left >= r.left) return;
+          if (q2.left >= r.left) return;
         } else if (dir === "right") {
           p = x - cx;
           o = Math.abs(y - cy);
-          if (q.right <= r.right) return;
+          if (q2.right <= r.right) return;
         } else if (dir === "up") {
           p = cy - y;
           o = Math.abs(x - cx);
-          if (q.top >= r.top) return;
+          if (q2.top >= r.top) return;
         } else {
           p = y - cy;
           o = Math.abs(x - cx);
-          if (q.bottom <= r.bottom) return;
+          if (q2.bottom <= r.bottom) return;
         }
         if (p <= 0) return;
         const score = p + o * 2.5;
@@ -47510,10 +47637,15 @@ ${file}:${line}:${column}: ERROR: ${pluginText}${e.text}`;
       const typing = ae && /^(INPUT|TEXTAREA)$/.test(ae.tagName);
       if (typing && k !== K.UP && k !== K.DOWN && k !== K.BACK) return;
       let done = false;
-      if (k === K.YELLOW) {
-        done = closeNpv() || openNpv();
-        if (npv()) focusEl = null;
-      } else if (k === K.BLUE) {
+      const mediaKey = [K.PLAYPAUSE, K.PLAY, K.PAUSE, K.STOP, K.NEXT, K.PREV, K.FF, K.RW, K.BLUE].indexOf(k) >= 0;
+      if (tv.shown && k !== K.YELLOW && !mediaKey) {
+        hideTv();
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
+      if (k === K.YELLOW) done = hideTv() || showTv();
+      else if (k === K.BLUE) {
         panelVisible = !panelVisible;
         if (box) box.style.display = panelVisible ? "block" : "none";
         done = true;
@@ -47620,8 +47752,21 @@ ${file}:${line}:${column}: ERROR: ${pluginText}${e.text}`;
     const pending = /* @__PURE__ */ new Map();
     let reqSeq = 0;
     const fetchBefore = window.fetch;
-    window.fetch = function(input) {
+    window.fetch = function(input, init) {
       const u = input && input.url ? input.url : String(input);
+      if (/pathfinder/.test(u) && init && init.headers) {
+        try {
+          const h = {};
+          if (typeof init.headers.forEach === "function" && !Array.isArray(init.headers)) init.headers.forEach((v, k) => {
+            h[k.toLowerCase()] = v;
+          });
+          else Object.keys(init.headers).forEach((k) => {
+            h[k.toLowerCase()] = init.headers[k];
+          });
+          if (h["client-token"] || h.authorization) auth.headers = h;
+        } catch (e) {
+        }
+      }
       const id = ++reqSeq;
       pending.set(id, "F " + short(u));
       const key = /\/api\/token|\/api\/server-time|translations|\.json(\?|$)|apresolve|clienttoken/i.test(u);
@@ -47633,7 +47778,10 @@ ${file}:${line}:${column}: ERROR: ${pluginText}${e.text}`;
           if (key) log("risposta " + r.status + " in " + ((Date.now() - t0) / 1e3).toFixed(1) + " s: " + short(u));
           if (/track-playback\/v1\//.test(u) && r.clone) r.clone().json().then(inspectPlayback).catch(() => {
           });
-          if (/\/api\/token/.test(u) && r.clone) r.clone().json().then((j) => log("token: " + (j.isAnonymous ? "ANONIMO" : "utente collegato"))).catch(() => {
+          if (/\/api\/token/.test(u) && r.clone) r.clone().json().then((j) => {
+            if (j.accessToken) auth.token = j.accessToken;
+            log("token: " + (j.isAnonymous ? "ANONIMO" : "utente collegato"));
+          }).catch(() => {
           });
           if (r.status >= 400) netFail(u, "HTTP " + r.status);
           return r;
