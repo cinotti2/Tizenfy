@@ -1,4 +1,4 @@
-/* Tizenfy 1.2.3 per Samsung Tizen 5.0 (Chromium M63) */
+/* Tizenfy 1.3.1 per Samsung Tizen 5.0 (Chromium M63) */
 if (window.top === window && !window.__tzPolyfill) { window.__tzPolyfill = true;
 /**
  * core-js 3.38.1
@@ -46803,6 +46803,13 @@ ${file}:${line}:${column}: ERROR: ${pluginText}${e.text}`;
   function fixCss(css, baseUrl) {
     let n = 0;
     css = unwrapLayers(css);
+    css = css.replace(
+      /([{;])(\s*)overflow\s*:\s*([a-z-]+)\s+([a-z-]+)(\s*!important)?(?=\s*[;}])/g,
+      (m, sep, ws, a, b, imp) => {
+        n++;
+        return sep + ws + "overflow-x:" + a + (imp || "") + ";overflow-y:" + b + (imp || "");
+      }
+    );
     css = css.replace(/:is\(/g, () => {
       n++;
       return ":-webkit-any(";
@@ -46861,7 +46868,7 @@ ${file}:${line}:${column}: ERROR: ${pluginText}${e.text}`;
         box.style.display = panelVisible ? "block" : "none";
         document.body.appendChild(box);
       }
-      box.textContent = "TIZENFY 1.2.3\n" + lines.slice(-26).join("\n") + (errors.length ? "\n\nERRORI (" + errors.length + "):\n" + errors.slice(0, 7).join("\n") : "");
+      box.textContent = "TIZENFY 1.3.1\n" + lines.slice(-26).join("\n") + (errors.length ? "\n\nERRORI (" + errors.length + "):\n" + errors.slice(0, 7).join("\n") : "");
     }
     const log = (l) => {
       lines.push(l);
@@ -47274,24 +47281,210 @@ ${file}:${line}:${column}: ERROR: ${pluginText}${e.text}`;
       YELLOW: 405,
       BLUE: 406
     };
+    const SEL = 'a[href],button,input,textarea,select,[role="button"],[role="link"],[role="tab"],[role="menuitem"],[role="option"],[role="switch"],[role="checkbox"],[tabindex]:not([tabindex="-1"]),[class*="on-click"],[class*="--interactive"],[data-testid="track-row"],[data-testid="floating-now-playing-bar"]';
+    let focusEl = null, ringHidden = true, ring = null;
+    function isVisible(el) {
+      const r = el.getBoundingClientRect();
+      if (r.width < 4 || r.height < 4) return false;
+      if (el.disabled) return false;
+      const cs = getComputedStyle(el);
+      return cs.visibility !== "hidden" && cs.display !== "none" && Number(cs.opacity) !== 0;
+    }
+    function layerRoot() {
+      const n = npv();
+      if (n) return n;
+      const d = [].filter.call(document.querySelectorAll('[role="dialog"],[aria-modal="true"]'), isVisible);
+      return d.length ? d[d.length - 1] : document.body;
+    }
+    function candidates() {
+      const list = [].filter.call(layerRoot().querySelectorAll(SEL), (el) => {
+        if (box && box.contains(el)) return false;
+        const card = el.closest && el.closest('[data-testid="home-card"],[data-testid="card-mwp"]');
+        if (card && !/on-click/.test(String(el.className))) return false;
+        return isVisible(el);
+      });
+      return list.filter((el) => {
+        const r = el.getBoundingClientRect(), area = r.width * r.height;
+        return !list.some((o) => {
+          if (o === el || !el.contains(o)) return false;
+          const q = o.getBoundingClientRect();
+          return q.width * q.height > area * 0.8;
+        });
+      });
+    }
+    function placeRing() {
+      if (!ring) {
+        ring = document.createElement("div");
+        ring.style.cssText = "position:fixed;z-index:2147483645;pointer-events:none;border:4px solid #fff;border-radius:8px;box-shadow:0 0 0 3px rgba(0,0,0,.6),0 0 24px rgba(255,255,255,.5);display:none;";
+        document.body.appendChild(ring);
+      }
+      if (ringHidden || !focusEl || !document.body.contains(focusEl) || !isVisible(focusEl)) {
+        ring.style.display = "none";
+        return;
+      }
+      const r = focusEl.getBoundingClientRect();
+      ring.style.display = "block";
+      ring.style.left = r.left - 5 + "px";
+      ring.style.top = r.top - 5 + "px";
+      ring.style.width = r.width + 2 + "px";
+      ring.style.height = r.height + 2 + "px";
+    }
+    setInterval(placeRing, 200);
+    window.addEventListener("scroll", placeRing, true);
+    document.addEventListener("mousemove", () => {
+      ringHidden = true;
+      placeRing();
+    }, true);
+    function scrollableAncestor(el, axis) {
+      for (let p = el.parentElement; p && p !== document.body && p !== document.documentElement; p = p.parentElement) {
+        const cs = getComputedStyle(p);
+        const ov = axis === "x" ? cs.overflowX : cs.overflowY;
+        const big = axis === "x" ? p.scrollWidth > p.clientWidth + 2 : p.scrollHeight > p.clientHeight + 2;
+        if (/(auto|scroll)/.test(ov) && big) return p;
+      }
+      return null;
+    }
+    function ensureVisible(el) {
+      const hx = scrollableAncestor(el, "x");
+      if (hx) {
+        const pr = hx.getBoundingClientRect(), r2 = el.getBoundingClientRect();
+        if (r2.left < pr.left + 24 || r2.right > pr.right - 24) hx.scrollLeft += r2.left + r2.width / 2 - (pr.left + pr.width / 2);
+      }
+      const r = el.getBoundingClientRect(), vh = window.innerHeight;
+      if (r.top < vh * 0.12 || r.bottom > vh * 0.82) {
+        const dy = r.top + r.height / 2 - vh / 2;
+        const vy = scrollableAncestor(el, "y");
+        if (vy) vy.scrollTop += dy;
+        else window.scrollBy(0, dy);
+      }
+      if (document.scrollingElement && document.scrollingElement.scrollLeft) document.scrollingElement.scrollLeft = 0;
+    }
+    function setFocus(el) {
+      focusEl = el;
+      ringHidden = false;
+      ensureVisible(el);
+      placeRing();
+    }
+    function firstVisible(c) {
+      const vh = window.innerHeight;
+      const inView = c.filter((el) => {
+        const r = el.getBoundingClientRect();
+        return r.top >= 0 && r.top < vh;
+      });
+      const pool = inView.length ? inView : c;
+      return pool.slice().sort((a, b) => {
+        const x = a.getBoundingClientRect(), y = b.getBoundingClientRect();
+        return x.top - y.top || x.left - y.left;
+      })[0];
+    }
+    function move(dir) {
+      const c = candidates();
+      if (!c.length) return false;
+      const root = layerRoot();
+      if (ringHidden && focusEl && c.indexOf(focusEl) >= 0) {
+        ringHidden = false;
+        placeRing();
+        return true;
+      }
+      if (!focusEl || c.indexOf(focusEl) < 0 || !root.contains(focusEl)) {
+        const play = root.querySelector('[data-testid="npv-play-button"]');
+        setFocus(play && c.indexOf(play) >= 0 ? play : firstVisible(c));
+        return true;
+      }
+      const r = focusEl.getBoundingClientRect(), cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+      let best = null, bestScore = Infinity;
+      c.forEach((el) => {
+        if (el === focusEl || el.contains(focusEl) || focusEl.contains(el)) return;
+        const q = el.getBoundingClientRect(), x = q.left + q.width / 2, y = q.top + q.height / 2;
+        let p, o;
+        if (dir === "left") {
+          p = cx - x;
+          o = Math.abs(y - cy);
+          if (q.left >= r.left) return;
+        } else if (dir === "right") {
+          p = x - cx;
+          o = Math.abs(y - cy);
+          if (q.right <= r.right) return;
+        } else if (dir === "up") {
+          p = cy - y;
+          o = Math.abs(x - cx);
+          if (q.top >= r.top) return;
+        } else {
+          p = y - cy;
+          o = Math.abs(x - cx);
+          if (q.bottom <= r.bottom) return;
+        }
+        if (p <= 0) return;
+        const score = p + o * 2.5;
+        if (score < bestScore) {
+          bestScore = score;
+          best = el;
+        }
+      });
+      if (best) {
+        setFocus(best);
+        return true;
+      }
+      return true;
+    }
+    function activate() {
+      if (ringHidden || !focusEl || !document.body.contains(focusEl)) return false;
+      if (/^(INPUT|TEXTAREA|SELECT)$/.test(focusEl.tagName)) {
+        focusEl.focus();
+        return true;
+      }
+      focusEl.click();
+      return true;
+    }
+    function goBack() {
+      const ae = document.activeElement;
+      if (ae && /^(INPUT|TEXTAREA)$/.test(ae.tagName)) {
+        ae.blur();
+        return true;
+      }
+      if (closeNpv()) return true;
+      const d = [].filter.call(document.querySelectorAll('[role="dialog"],[aria-modal="true"]'), isVisible).pop();
+      if (d) {
+        const x = d.querySelector('[data-testid="close-button"],button[aria-label*="hiud"],button[aria-label*="lose"]');
+        if (x) {
+          x.click();
+          return true;
+        }
+      }
+      if (!/^\/(intl-[a-z]+\/?)?$/.test(location.pathname)) {
+        history.back();
+        return true;
+      }
+      return false;
+    }
     document.addEventListener("keydown", (e) => {
-      const k = e.keyCode, open = !!npv();
+      const k = e.keyCode;
+      const ae = document.activeElement;
+      const typing = ae && /^(INPUT|TEXTAREA)$/.test(ae.tagName);
+      if (typing && k !== K.UP && k !== K.DOWN && k !== K.BACK) return;
       let done = false;
-      if (k === K.YELLOW) done = closeNpv() || openNpv();
-      else if (k === K.BLUE) {
+      if (k === K.YELLOW) {
+        done = closeNpv() || openNpv();
+        if (npv()) focusEl = null;
+      } else if (k === K.BLUE) {
         panelVisible = !panelVisible;
         if (box) box.style.display = panelVisible ? "block" : "none";
         done = true;
       } else if (k === K.PLAYPAUSE || k === K.PLAY || k === K.PAUSE || k === K.STOP) done = playPause();
       else if (k === K.NEXT || k === K.FF) done = inNpv("npv-skip-forward-button");
       else if (k === K.PREV || k === K.RW) done = inNpv("npv-skip-previous-button");
-      else if (open && k === K.ENTER) done = playPause();
-      else if (open && k === K.RIGHT) done = clickTid("npv-skip-forward-button");
-      else if (open && k === K.LEFT) done = clickTid("npv-skip-previous-button");
-      else if (open && k === K.RED) done = clickTid("npv-shuffle-button");
-      else if (open && k === K.GREEN) done = clickTid("npv-repeat-button");
-      else if (open && (k === K.DOWN || k === K.BACK)) done = closeNpv();
-      else if (!open && k === K.UP) done = openNpv();
+      else if (k === K.RED && npv()) done = clickTid("npv-shuffle-button");
+      else if (k === K.GREEN && npv()) done = clickTid("npv-repeat-button");
+      else if (k === K.LEFT) done = move("left");
+      else if (k === K.RIGHT) done = move("right");
+      else if (k === K.UP) {
+        if (typing) ae.blur();
+        done = move("up");
+      } else if (k === K.DOWN) {
+        if (typing) ae.blur();
+        done = move("down");
+      } else if (k === K.ENTER) done = activate();
+      else if (k === K.BACK) done = goBack();
       if (done) {
         e.preventDefault();
         e.stopPropagation();
@@ -47310,7 +47503,7 @@ ${file}:${line}:${column}: ERROR: ${pluginText}${e.text}`;
     }
     async function processCss(link) {
       link.__tzcss = 1;
-      const href = link.href, name = short(href), key = "css1|" + href;
+      const href = link.href, name = short(href), key = "css2|" + href;
       try {
         let css = await cacheGet(key);
         if (!css) {
