@@ -1,9 +1,9 @@
 {
   "name": "@unboundangel/tizenspotify",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "Ad-free Spotify for Samsung Tizen TVs via TizenBrew",
   "packageType": "mods",
-  "websiteURL": "https://accounts.spotify.com/it/login?continue=https%3A%2F%2Fopen.spotify.com%2F",
+  "websiteURL": "https://open.spotify.com",
   "main": "userScript.js",
   "serviceFile": "service.js",
   "keys": [
@@ -11,7 +11,7 @@
     "MediaFastForward", "MediaRewind", "MediaTrackNext", "MediaTrackPrevious",
     "ColorF0Red", "ColorF1Green", "ColorF2Yellow", "ColorF3Blue"
   ],
-  "appName": "Tizenfy Login",
+  "appName": "Tizenfy",
   "author": "UnboundAngel",
   "license": "GPL-3.0"
 }

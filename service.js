@@ -1,3 +1,4 @@
+'use strict';
 /**
  * TizenSpotify - service.js
  * WebSocket server running on the TV (Node.js via TizenBrew serviceFile)
@@ -7,9 +8,15 @@
  */
 
 const http   = require('http');
+const https  = require('https');
 const crypto = require('crypto');
 const fs     = require('fs');
 const path   = require('path');
+
+
+// Compatibilita con il Node.js delle TV meno recenti
+function bufAlloc(n) { return Buffer.alloc ? Buffer.alloc(n) : new Buffer(n).fill(0); }
+function bufFrom(d, e) { return (Buffer.from && Buffer.from !== Uint8Array.from) ? Buffer.from(d, e) : new Buffer(d, e); }
 
 const PORT = 8765;
 const WS_MAGIC = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11';
@@ -23,33 +30,34 @@ const clients = {
 // ─── Minimal WebSocket framing ───────────────────────────────────────────────
 
 function createWSClient(socket) {
-  let buffer = Buffer.alloc(0);
+  let buffer = bufAlloc(0);
   let readyState = 1; // 1 = OPEN, 2 = CLOSING, 3 = CLOSED
   const handlers = { message: [], close: [], error: [] };
 
   function on(event, fn) {
     if (handlers[event]) handlers[event].push(fn);
   }
-  function emit(event, ...args) {
-    (handlers[event] || []).forEach(fn => fn(...args));
+  function emit(event) {
+    var args = Array.prototype.slice.call(arguments, 1);
+    (handlers[event] || []).forEach(function (fn) { fn.apply(null, args); });
   }
 
   function send(data) {
     if (readyState !== 1) return;
-    const payload = Buffer.from(data, 'utf8');
+    const payload = bufFrom(data, 'utf8');
     const len = payload.length;
     let header;
     if (len <= 125) {
-      header = Buffer.alloc(2);
+      header = bufAlloc(2);
       header[0] = 0x81; // FIN + text opcode
       header[1] = len;
     } else if (len <= 65535) {
-      header = Buffer.alloc(4);
+      header = bufAlloc(4);
       header[0] = 0x81;
       header[1] = 126;
       header.writeUInt16BE(len, 2);
     } else {
-      header = Buffer.alloc(10);
+      header = bufAlloc(10);
       header[0] = 0x81;
       header[1] = 127;
       header.writeUInt32BE(0, 2);
@@ -115,7 +123,7 @@ function createWSClient(socket) {
         // Close frame
         readyState = 3;
         try {
-          const frame = Buffer.from([0x88, 0x00]);
+          const frame = bufFrom([0x88, 0x00]);
           socket.write(frame);
         } catch (_) {}
         socket.destroy();
@@ -123,7 +131,7 @@ function createWSClient(socket) {
         return;
       } else if (opcode === 0x9) {
         // Ping → Pong
-        const pong = Buffer.alloc(2 + payload.length);
+        const pong = bufAlloc(2 + payload.length);
         pong[0] = 0x8A;
         pong[1] = payload.length;
         payload.copy(pong, 2);
@@ -146,14 +154,27 @@ function createWSClient(socket) {
 
 // Serve main.html so the phone can open http://TV-IP:8765 directly,
 // keeping everything on HTTP and avoiding the HTTPS→ws:// blocked-by-browser issue.
-const htmlFile = path.join(__dirname, 'main.html');
+// TizenBrew esegue il servizio in una sandbox senza __dirname e senza i file del modulo:
+// la pagina del telecomando viene scaricata da jsDelivr e tenuta in memoria.
+const MAIN_HTML_URL = 'https://cdn.jsdelivr.net/gh/cinotti2/Tizenfy/main.html';
+var cachedHtml = null;
+
+function loadHtml(cb) {
+  if (cachedHtml) return cb(null, cachedHtml);
+  https.get(MAIN_HTML_URL, function (r) {
+    if (r.statusCode !== 200) { r.resume(); return cb(new Error('HTTP ' + r.statusCode)); }
+    var chunks = [];
+    r.on('data', function (c) { chunks.push(c); });
+    r.on('end', function () { cachedHtml = Buffer.concat(chunks); cb(null, cachedHtml); });
+  }).on('error', cb);
+}
 
 const server = http.createServer((req, res) => {
   if (req.method === 'GET' && (req.url === '/' || req.url === '/main.html')) {
-    fs.readFile(htmlFile, (err, data) => {
+    loadHtml(function (err, data) {
       if (err) {
-        res.writeHead(404, { 'Content-Type': 'text/plain' });
-        res.end('main.html not found');
+        res.writeHead(500, { 'Content-Type': 'text/plain' });
+        res.end('Impossibile scaricare main.html: ' + err.message);
         return;
       }
       res.writeHead(200, {
