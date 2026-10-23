@@ -1,29 +1,34 @@
 (function() {
   if (window.top !== window) return;
-  var diag = { lines: [], errors: [] };
-  var box = null;
-  var origUA = navigator.userAgent;
+  var lines = [], errors = [], box = null;
   function render() {
     if (!document.body) return;
     if (!box || !box.parentNode) {
       box = document.createElement("div");
-      box.style.cssText = "position:fixed;top:12px;right:12px;width:46%;max-height:92%;overflow:hidden;z-index:2147483647;background:rgba(0,0,0,0.88);color:#fff;font:15px/1.35 monospace;padding:12px;border:3px solid #1db954;white-space:pre-wrap;word-break:break-all;pointer-events:none;";
+      box.style.cssText = "position:fixed;top:12px;right:12px;width:46%;max-height:92%;overflow:hidden;z-index:2147483647;background:rgba(0,0,0,0.9);color:#fff;font:15px/1.35 monospace;padding:12px;border:3px solid #f5a623;white-space:pre-wrap;word-break:break-all;pointer-events:none;";
       document.body.appendChild(box);
     }
-    box.textContent = "TIZENFY DIAGNOSTICA\n" + diag.lines.join("\n") + "\n\nERRORI JAVASCRIPT (" + diag.errors.length + "):\n" + diag.errors.join("\n");
+    box.textContent = "TIZENFY 1.0.7 VERIFICA\n" + lines.join("\n") + "\n\nERRORI (" + errors.length + "):\n" + errors.join("\n");
   }
   function add(l) {
-    diag.lines.push(l);
+    lines.push(l);
     render();
   }
   function addErr(e) {
-    if (diag.errors.length < 14) diag.errors.push(e);
+    if (errors.length < 8) errors.push(e);
     render();
   }
   function short(u) {
     u = String(u || "");
-    return u.split("?")[0].split("/").slice(-2).join("/");
+    return u.split("?")[0].split("/").slice(-1)[0].slice(0, 40);
   }
+  var cspSeen = {};
+  document.addEventListener("securitypolicyviolation", function(e) {
+    var k = e.violatedDirective + " " + short(e.blockedURI);
+    if (cspSeen[k]) return;
+    cspSeen[k] = 1;
+    add("CSP BLOCCA: " + k);
+  });
   window.addEventListener("error", function(ev) {
     var t = ev.target;
     if (t && t !== window && (t.src || t.href)) {
@@ -32,57 +37,90 @@
     }
     addErr((ev.message || "errore") + " @ " + short(ev.filename) + ":" + (ev.lineno || 0));
   }, true);
-  window.addEventListener("unhandledrejection", function(ev) {
-    var r = ev.reason;
-    addErr("Promise: " + (r && (r.message || r.name) || String(r)));
-  });
-  add("UA: " + origUA);
-  function syn(name, code) {
+  try {
+    eval("1+1");
+    add("eval: SI");
+  } catch (e) {
+    add("eval: NO (" + e.name + ")");
+  }
+  try {
+    new Function("return 1")();
+    add("new Function: SI");
+  } catch (e) {
+    add("new Function: NO (" + e.name + ")");
+  }
+  try {
+    new Function("var a={};return a?.b;");
+    add("sintassi ?. : SI");
+  } catch (e) {
+    add("sintassi ?. : NO (" + e.name + ")");
+  }
+  if (window.WebAssembly) {
+    WebAssembly.compile(new Uint8Array([0, 97, 115, 109, 1, 0, 0, 0])).then(function() {
+      add("WebAssembly: SI");
+    }).catch(function(e) {
+      add("WebAssembly: NO (" + e.name + ")");
+    });
+  } else add("WebAssembly: assente");
+  function scriptTests() {
     try {
-      new Function(code);
-      add(name + ": SI");
+      var s = document.createElement("script");
+      s.textContent = "window.__tzInline = 1;";
+      (document.head || document.documentElement).appendChild(s);
+      add("script inline: " + (window.__tzInline === 1 ? "SI" : "NO"));
     } catch (e) {
-      add(name + ": NO");
+      add("script inline: NO (" + e.name + ")");
     }
-  }
-  syn("Sintassi ?.", "var a={};return a?.b;");
-  syn("Sintassi ??", "var a=null;return a??1;");
-  syn("Campi di classe", "class A{x=1}");
-  function api(name, ok) {
-    add(name + ": " + (ok ? "SI" : "NO"));
-  }
-  api("ResizeObserver", typeof ResizeObserver !== "undefined");
-  api("Array.flat", !!Array.prototype.flat);
-  api("Object.fromEntries", !!Object.fromEntries);
-  api("globalThis", typeof globalThis !== "undefined");
-  api("AbortController", typeof AbortController !== "undefined");
-  var MS = window.MediaSource;
-  api("MediaSource", !!MS);
-  if (MS) {
-    api("MSE audio mp4a", MS.isTypeSupported('audio/mp4; codecs="mp4a.40.2"'));
-    api("MSE audio flac", MS.isTypeSupported('audio/mp4; codecs="flac"'));
-  }
-  function eme(label, ks, robust) {
-    if (!navigator.requestMediaKeySystemAccess) {
-      add(label + ": NO (EME assente)");
-      return;
-    }
-    var cap = { contentType: 'audio/mp4; codecs="mp4a.40.2"' };
-    if (robust) cap.robustness = robust;
     try {
-      navigator.requestMediaKeySystemAccess(ks, [{ initDataTypes: ["cenc"], audioCapabilities: [cap] }]).then(function() {
-        add(label + ": SI");
+      var url = URL.createObjectURL(new Blob(["window.__tzBlob = 1;"], { type: "text/javascript" }));
+      var b = document.createElement("script");
+      b.src = url;
+      b.onload = function() {
+        add("script blob: " + (window.__tzBlob === 1 ? "SI" : "NO"));
+      };
+      b.onerror = function() {
+        add("script blob: NO");
+      };
+      (document.head || document.documentElement).appendChild(b);
+    } catch (e) {
+      add("script blob: NO (" + e.name + ")");
+    }
+    var srcs = [];
+    var all = document.getElementsByTagName("script");
+    for (var i = 0; i < all.length; i++) if (all[i].src && /spotify/.test(all[i].src)) srcs.push(all[i].src);
+    add("script Spotify nella pagina: " + srcs.length);
+    srcs.slice(0, 3).forEach(function(u) {
+      add("  " + short(u));
+    });
+    if (srcs.length) {
+      var big = srcs[srcs.length - 1];
+      for (var j = 0; j < srcs.length; j++) if (/web-player/.test(srcs[j])) big = srcs[j];
+      fetch(big, { mode: "cors", credentials: "omit" }).then(function(r) {
+        return r.text().then(function(t) {
+          return { r, t };
+        });
+      }).then(function(o) {
+        add("lettura script (CORS): SI, " + Math.round(o.t.length / 1024) + " KB");
+        try {
+          new Function(o.t);
+          add("script letto su M63: OK");
+        } catch (e) {
+          add("script letto su M63: " + e.name + ": " + String(e.message).slice(0, 60));
+        }
       }).catch(function(e) {
-        add(label + ": NO (" + (e && e.name) + ")");
+        add("lettura script (CORS): NO (" + (e && e.message) + ")");
       });
-    } catch (e) {
-      add(label + ": NO (" + e.message + ")");
     }
+    fetch("http://127.0.0.1:8765/").then(function(r) {
+      return r.text();
+    }).then(function(t) {
+      add("servizio TV 8765: SI (" + t.slice(0, 20) + ")");
+    }).catch(function(e) {
+      add("servizio TV 8765: NO (" + (e && e.message) + ")");
+    });
   }
-  eme("DRM Widevine", "com.widevine.alpha");
-  eme("DRM Widevine SW_SECURE_CRYPTO", "com.widevine.alpha", "SW_SECURE_CRYPTO");
-  eme("DRM PlayReady", "com.microsoft.playready");
-  document.addEventListener("DOMContentLoaded", render);
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", scriptTests);
+  else scriptTests();
   setInterval(render, 2e3);
 })();
 (function() {
