@@ -1,4 +1,4 @@
-/* Tizenfy 1.1.9 per Samsung Tizen 5.0 (Chromium M63) */
+/* Tizenfy 1.2.0 per Samsung Tizen 5.0 (Chromium M63) */
 if (window.top === window && !window.__tzPolyfill) { window.__tzPolyfill = true;
 /**
  * core-js 3.38.1
@@ -46691,6 +46691,17 @@ ${file}:${line}:${column}: ERROR: ${pluginText}${e.text}`;
       }
     });
   }
+  (function() {
+    const f = window.fetch;
+    window.fetch = function(input, init) {
+      const isReq = typeof Request !== "undefined" && input instanceof Request;
+      if (!isReq && (!init || init.credentials === void 0)) {
+        init = Object.assign({}, init || {}, { credentials: "same-origin" });
+        return f.call(this, input, init);
+      }
+      return f.apply(this, arguments);
+    };
+  })();
 
   // cssfix.js
   function splitTop(v) {
@@ -46849,7 +46860,7 @@ ${file}:${line}:${column}: ERROR: ${pluginText}${e.text}`;
         box.style.cssText = "position:fixed;left:12px;bottom:12px;width:62%;max-height:88%;overflow:hidden;z-index:2147483647;background:rgba(0,0,0,0.9);color:#fff;font:13px/1.25 monospace;padding:10px;border:3px solid #1db954;white-space:pre-wrap;word-break:break-all;pointer-events:none;";
         document.body.appendChild(box);
       }
-      box.textContent = "TIZENFY 1.1.9\n" + lines.slice(-26).join("\n") + (errors.length ? "\n\nERRORI (" + errors.length + "):\n" + errors.slice(0, 7).join("\n") : "");
+      box.textContent = "TIZENFY 1.2.0\n" + lines.slice(-26).join("\n") + (errors.length ? "\n\nERRORI (" + errors.length + "):\n" + errors.slice(0, 7).join("\n") : "");
     }
     const log = (l) => {
       lines.push(l);
@@ -47241,6 +47252,8 @@ ${file}:${line}:${column}: ERROR: ${pluginText}${e.text}`;
         (r) => {
           pending.delete(id);
           if (key) log("risposta " + r.status + " in " + ((Date.now() - t0) / 1e3).toFixed(1) + " s: " + short(u));
+          if (/\/api\/token/.test(u) && r.clone) r.clone().json().then((j) => log("token: " + (j.isAnonymous ? "ANONIMO" : "utente collegato"))).catch(() => {
+          });
           if (r.status >= 400) netFail(u, "HTTP " + r.status);
           return r;
         },
