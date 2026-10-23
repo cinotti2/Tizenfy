@@ -1,4 +1,4 @@
-/* Tizenfy 1.2.2 per Samsung Tizen 5.0 (Chromium M63) */
+/* Tizenfy 1.2.3 per Samsung Tizen 5.0 (Chromium M63) */
 if (window.top === window && !window.__tzPolyfill) { window.__tzPolyfill = true;
 /**
  * core-js 3.38.1
@@ -46861,7 +46861,7 @@ ${file}:${line}:${column}: ERROR: ${pluginText}${e.text}`;
         box.style.display = panelVisible ? "block" : "none";
         document.body.appendChild(box);
       }
-      box.textContent = "TIZENFY 1.2.2\n" + lines.slice(-26).join("\n") + (errors.length ? "\n\nERRORI (" + errors.length + "):\n" + errors.slice(0, 7).join("\n") : "");
+      box.textContent = "TIZENFY 1.2.3\n" + lines.slice(-26).join("\n") + (errors.length ? "\n\nERRORI (" + errors.length + "):\n" + errors.slice(0, 7).join("\n") : "");
     }
     const log = (l) => {
       lines.push(l);
@@ -47224,13 +47224,79 @@ ${file}:${line}:${column}: ERROR: ${pluginText}${e.text}`;
     setInterval(() => {
       if (Date.now() - lastActivity >= IDLE_MS && isPlaying() && openNpv()) log("schermata brano aperta (inattivita)");
     }, 3e3);
-    document.addEventListener("keydown", (e) => {
-      if (e.keyCode === 405) {
-        if (!closeNpv()) openNpv();
+    const clickTid = (id) => {
+      const el = document.querySelector('[data-testid="' + id + '"]');
+      if (el) {
+        el.click();
+        return true;
       }
-      if (e.keyCode === 406) {
+      return false;
+    };
+    function barButton(re) {
+      const b = bar();
+      if (!b) return null;
+      return [].filter.call(b.querySelectorAll("button"), (x) => re.test(x.getAttribute("aria-label") || ""))[0] || null;
+    }
+    function playPause() {
+      if (clickTid("npv-play-button")) return true;
+      const btn = barButton(/pausa|pause|riproduci|play/i);
+      if (btn) {
+        btn.click();
+        return true;
+      }
+      return false;
+    }
+    function inNpv(id) {
+      if (clickTid(id)) return true;
+      if (openNpv()) {
+        setTimeout(() => clickTid(id), 700);
+        return true;
+      }
+      return false;
+    }
+    const K = {
+      LEFT: 37,
+      UP: 38,
+      RIGHT: 39,
+      DOWN: 40,
+      ENTER: 13,
+      BACK: 10009,
+      PLAYPAUSE: 10252,
+      PLAY: 415,
+      PAUSE: 19,
+      STOP: 413,
+      FF: 417,
+      RW: 412,
+      NEXT: 10233,
+      PREV: 10232,
+      RED: 403,
+      GREEN: 404,
+      YELLOW: 405,
+      BLUE: 406
+    };
+    document.addEventListener("keydown", (e) => {
+      const k = e.keyCode, open = !!npv();
+      let done = false;
+      if (k === K.YELLOW) done = closeNpv() || openNpv();
+      else if (k === K.BLUE) {
         panelVisible = !panelVisible;
         if (box) box.style.display = panelVisible ? "block" : "none";
+        done = true;
+      } else if (k === K.PLAYPAUSE || k === K.PLAY || k === K.PAUSE || k === K.STOP) done = playPause();
+      else if (k === K.NEXT || k === K.FF) done = inNpv("npv-skip-forward-button");
+      else if (k === K.PREV || k === K.RW) done = inNpv("npv-skip-previous-button");
+      else if (open && k === K.ENTER) done = playPause();
+      else if (open && k === K.RIGHT) done = clickTid("npv-skip-forward-button");
+      else if (open && k === K.LEFT) done = clickTid("npv-skip-previous-button");
+      else if (open && k === K.RED) done = clickTid("npv-shuffle-button");
+      else if (open && k === K.GREEN) done = clickTid("npv-repeat-button");
+      else if (open && (k === K.DOWN || k === K.BACK)) done = closeNpv();
+      else if (!open && k === K.UP) done = openNpv();
+      if (done) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.stopImmediatePropagation) e.stopImmediatePropagation();
+        lastActivity = Date.now();
       }
     }, true);
     const openOrig = window.open;
