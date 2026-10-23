@@ -1,4 +1,4 @@
-/* Tizenfy 1.1.1 per Samsung Tizen 5.0 (Chromium M63) */
+/* Tizenfy 1.1.2 per Samsung Tizen 5.0 (Chromium M63) */
 if (window.top === window && !window.__tzPolyfill) { window.__tzPolyfill = true;
 /**
  * core-js 3.38.1
@@ -46674,7 +46674,7 @@ ${file}:${line}:${column}: ERROR: ${pluginText}${e.text}`;
         box.style.cssText = "position:fixed;left:12px;bottom:12px;width:52%;max-height:70%;overflow:hidden;z-index:2147483647;background:rgba(0,0,0,0.9);color:#fff;font:14px/1.3 monospace;padding:10px;border:3px solid #1db954;white-space:pre-wrap;word-break:break-all;pointer-events:none;";
         document.body.appendChild(box);
       }
-      box.textContent = "TIZENFY 1.1.1\n" + lines.slice(-16).join("\n") + (errors.length ? "\n\nERRORI (" + errors.length + "):\n" + errors.slice(0, 7).join("\n") : "");
+      box.textContent = "TIZENFY 1.1.2\n" + lines.slice(-16).join("\n") + (errors.length ? "\n\nERRORI (" + errors.length + "):\n" + errors.slice(0, 7).join("\n") : "");
     }
     const log = (l) => {
       lines.push(l);
@@ -46869,6 +46869,36 @@ ${file}:${line}:${column}: ERROR: ${pluginText}${e.text}`;
       if (isTarget(node)) hijack(node);
       return origInsert.apply(this, arguments);
     };
+    ["error", "warn"].forEach((lvl) => {
+      const orig = console[lvl];
+      console[lvl] = function() {
+        try {
+          const msg2 = Array.prototype.map.call(arguments, (a) => a && a.message ? a.name + " " + a.message : String(a)).join(" ");
+          if (lvl === "error" || /fail|error|unsupported|not supported/i.test(msg2)) err("console." + lvl + ": " + msg2);
+        } catch (e) {
+        }
+        return orig.apply(this, arguments);
+      };
+    });
+    setTimeout(function check() {
+      try {
+        const chunks = Object.keys(window).filter((k) => /^webpackChunk/.test(k)).map((k) => k + "=" + (window[k] && window[k].length));
+        const root = document.querySelector('#main, #root, [data-testid="root"]') || document.body.firstElementChild;
+        const rk = root ? Object.keys(root).filter((k) => /^__react/.test(k) || k === "_reactRootContainer") : [];
+        let reactAny = false;
+        const all = document.body.getElementsByTagName("*");
+        for (let i = 0; i < all.length && i < 3e3; i++) {
+          if (Object.keys(all[i]).some((k) => /^__react/.test(k))) {
+            reactAny = true;
+            break;
+          }
+        }
+        log("stato: " + document.readyState + " | chunk: " + (chunks.join(",") || "nessuno"));
+        log("React attivo sulla pagina: " + (reactAny ? "SI" : "NO") + (root ? " | radice " + (root.id || root.tagName) + (rk.length ? " collegata" : " non collegata") : ""));
+      } catch (e) {
+        err("verifica stato: " + e.message);
+      }
+    }, 3e4);
     log("UA TV: " + navigator.userAgent.slice(0, 60));
     ready().catch(() => {
     });
