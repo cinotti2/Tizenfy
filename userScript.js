@@ -1,4 +1,4 @@
-/* Tizenfy 1.0.8 per Samsung Tizen 5.0 (Chromium M63) */
+/* Tizenfy 1.0.9 per Samsung Tizen 5.0 (Chromium M63) */
 if (window.top === window && !window.__tzPolyfill) { window.__tzPolyfill = true;
 /**
  * core-js 3.38.1
@@ -3398,7 +3398,7 @@ ${file}:${line}:${column}: ERROR: ${pluginText}${e.text}`;
         box.style.cssText = "position:fixed;left:12px;bottom:12px;width:52%;max-height:70%;overflow:hidden;z-index:2147483647;background:rgba(0,0,0,0.9);color:#fff;font:14px/1.3 monospace;padding:10px;border:3px solid #1db954;white-space:pre-wrap;word-break:break-all;pointer-events:none;";
         document.body.appendChild(box);
       }
-      box.textContent = "TIZENFY 1.0.8\n" + lines.slice(-16).join("\n") + (errors.length ? "\n\nERRORI (" + errors.length + "):\n" + errors.slice(0, 7).join("\n") : "");
+      box.textContent = "TIZENFY 1.0.9\n" + lines.slice(-16).join("\n") + (errors.length ? "\n\nERRORI (" + errors.length + "):\n" + errors.slice(0, 7).join("\n") : "");
     }
     const log = (l) => {
       lines.push(l);
@@ -3556,6 +3556,15 @@ ${file}:${line}:${column}: ERROR: ${pluginText}${e.text}`;
       queue.push({ el, url, p: getCode(url, url ? null : el.textContent) });
       drain();
     }
+    const existing = document.getElementsByTagName("script");
+    let found = 0;
+    for (let i = 0; i < existing.length; i++) {
+      if (isTarget(existing[i]) || isInlineTarget(existing[i])) {
+        enqueue(existing[i]);
+        found++;
+      }
+    }
+    log("script Spotify gia presenti: " + found);
     new MutationObserver((muts) => {
       for (const m of muts) for (const n of m.addedNodes) {
         if (isTarget(n) || isInlineTarget(n)) enqueue(n);
