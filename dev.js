@@ -1,4 +1,4 @@
-/* Tizenfy 1.3.1 per Samsung Tizen 5.0 (Chromium M63) */
+/* Tizenfy 1.3.2 per Samsung Tizen 5.0 (Chromium M63) */
 if (window.top === window && !window.__tzPolyfill) { window.__tzPolyfill = true;
 /**
  * core-js 3.38.1
@@ -46868,7 +46868,7 @@ ${file}:${line}:${column}: ERROR: ${pluginText}${e.text}`;
         box.style.display = panelVisible ? "block" : "none";
         document.body.appendChild(box);
       }
-      box.textContent = "TIZENFY 1.3.1\n" + lines.slice(-26).join("\n") + (errors.length ? "\n\nERRORI (" + errors.length + "):\n" + errors.slice(0, 7).join("\n") : "");
+      box.textContent = "TIZENFY 1.3.2\n" + lines.slice(-26).join("\n") + (errors.length ? "\n\nERRORI (" + errors.length + "):\n" + errors.slice(0, 7).join("\n") : "");
     }
     const log = (l) => {
       lines.push(l);
@@ -47168,6 +47168,53 @@ ${file}:${line}:${column}: ERROR: ${pluginText}${e.text}`;
         if (isTarget(n) || isInlineTarget(n)) enqueue(n);
       }
     }).observe(document, { childList: true, subtree: true });
+    const media = /* @__PURE__ */ new Set();
+    let adMode = false;
+    const mp = HTMLMediaElement.prototype, play0 = mp.play;
+    mp.play = function() {
+      media.add(this);
+      if (adMode) applyAd(this);
+      return play0.apply(this, arguments);
+    };
+    function applyAd(el) {
+      try {
+        el.muted = adMode;
+      } catch (e) {
+      }
+      const rates = adMode ? [16, 8, 4, 2] : [1];
+      for (const r of rates) {
+        try {
+          el.playbackRate = r;
+          if (el.playbackRate === r) break;
+        } catch (e) {
+        }
+      }
+    }
+    function setAdMode(on, why) {
+      if (on === adMode) return;
+      adMode = on;
+      document.querySelectorAll("audio,video").forEach((el) => media.add(el));
+      media.forEach(applyAd);
+      log(on ? "pubblicita: silenziata e accelerata (" + why + ")" : "pubblicita finita: audio normale");
+    }
+    function inspectPlayback(j) {
+      try {
+        const sm = j && j.state_machine, ref = j && j.updated_state_ref;
+        if (!sm || !ref || !sm.states || !sm.tracks) return;
+        const st = sm.states[ref.state_index];
+        const tr = st && sm.tracks[st.track];
+        if (!tr) return;
+        const uri = tr.metadata && tr.metadata.uri || "";
+        setAdMode(tr.content_type === "AD" || /^spotify:ad:/.test(uri), uri.slice(0, 30));
+      } catch (e) {
+      }
+    }
+    ["ratechange", "play", "loadedmetadata"].forEach((ev) => document.addEventListener(ev, (e) => {
+      const el = e.target;
+      if (!(el instanceof HTMLMediaElement)) return;
+      media.add(el);
+      if (adMode && (el.playbackRate < 2 || !el.muted)) applyAd(el);
+    }, true));
     const cover = { meta: null, state: "none", forced: false, hiddenUntil: 0 };
     if (!("mediaSession" in navigator)) {
       const ms = { setActionHandler() {
@@ -47584,6 +47631,8 @@ ${file}:${line}:${column}: ERROR: ${pluginText}${e.text}`;
         (r) => {
           pending.delete(id);
           if (key) log("risposta " + r.status + " in " + ((Date.now() - t0) / 1e3).toFixed(1) + " s: " + short(u));
+          if (/track-playback\/v1\//.test(u) && r.clone) r.clone().json().then(inspectPlayback).catch(() => {
+          });
           if (/\/api\/token/.test(u) && r.clone) r.clone().json().then((j) => log("token: " + (j.isAnonymous ? "ANONIMO" : "utente collegato"))).catch(() => {
           });
           if (r.status >= 400) netFail(u, "HTTP " + r.status);
