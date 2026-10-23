@@ -1,4 +1,4 @@
-/* Tizenfy 1.2.0 per Samsung Tizen 5.0 (Chromium M63) */
+/* Tizenfy 1.2.1 per Samsung Tizen 5.0 (Chromium M63) */
 if (window.top === window && !window.__tzPolyfill) { window.__tzPolyfill = true;
 /**
  * core-js 3.38.1
@@ -46852,15 +46852,16 @@ ${file}:${line}:${column}: ERROR: ${pluginText}${e.text}`;
     let firstBundle = null, executedInitial = 0, replayDone = false;
     const origEval = window.eval;
     const lines = [], errors = [];
-    let box = null;
+    let box = null, panelVisible = false;
     function render() {
       if (!document.body) return;
       if (!box || !box.parentNode) {
         box = document.createElement("div");
         box.style.cssText = "position:fixed;left:12px;bottom:12px;width:62%;max-height:88%;overflow:hidden;z-index:2147483647;background:rgba(0,0,0,0.9);color:#fff;font:13px/1.25 monospace;padding:10px;border:3px solid #1db954;white-space:pre-wrap;word-break:break-all;pointer-events:none;";
+        box.style.display = panelVisible ? "block" : "none";
         document.body.appendChild(box);
       }
-      box.textContent = "TIZENFY 1.2.0\n" + lines.slice(-26).join("\n") + (errors.length ? "\n\nERRORI (" + errors.length + "):\n" + errors.slice(0, 7).join("\n") : "");
+      box.textContent = "TIZENFY 1.2.1\n" + lines.slice(-26).join("\n") + (errors.length ? "\n\nERRORI (" + errors.length + "):\n" + errors.slice(0, 7).join("\n") : "");
     }
     const log = (l) => {
       lines.push(l);
@@ -47160,6 +47161,100 @@ ${file}:${line}:${column}: ERROR: ${pluginText}${e.text}`;
         if (isTarget(n) || isInlineTarget(n)) enqueue(n);
       }
     }).observe(document, { childList: true, subtree: true });
+    const cover = { meta: null, state: "none", forced: false, hiddenUntil: 0 };
+    if (!("mediaSession" in navigator)) {
+      const ms = { setActionHandler() {
+      }, setPositionState() {
+      } };
+      Object.defineProperty(ms, "metadata", { get: () => cover.meta, set: (v) => {
+        cover.meta = v;
+        renderCover();
+      } });
+      Object.defineProperty(ms, "playbackState", { get: () => cover.state, set: (v) => {
+        cover.state = v;
+        renderCover();
+      } });
+      try {
+        Object.defineProperty(navigator, "mediaSession", { value: ms, configurable: true });
+      } catch (e) {
+      }
+    }
+    if (!window.MediaMetadata) {
+      window.MediaMetadata = function MediaMetadata(o) {
+        o = o || {};
+        this.title = o.title || "";
+        this.artist = o.artist || "";
+        this.album = o.album || "";
+        this.artwork = o.artwork || [];
+      };
+    }
+    let coverEl = null, idleTimer = null;
+    const IDLE_MS = 15e3;
+    function buildCover() {
+      coverEl = document.createElement("div");
+      coverEl.style.cssText = "position:fixed;top:0;left:0;right:0;bottom:0;z-index:2147483646;background:#000;display:none;overflow:hidden;cursor:none;";
+      coverEl.innerHTML = '<div data-tz="bg" style="position:absolute;top:-10%;left:-10%;right:-10%;bottom:-10%;background-size:cover;background-position:center;filter:blur(60px) brightness(.45);"></div><div style="position:absolute;top:0;left:0;right:0;bottom:0;display:flex;flex-direction:column;align-items:center;justify-content:center;"><img data-tz="img" style="height:64vh;width:64vh;object-fit:cover;box-shadow:0 20px 60px rgba(0,0,0,.6);border-radius:8px;"><div data-tz="title" style="margin-top:4vh;color:#fff;font:700 4.2vh/1.2 SpotifyMixUITitle,SpotifyMixUI,sans-serif;text-align:center;max-width:80vw;"></div><div data-tz="artist" style="margin-top:1.2vh;color:rgba(255,255,255,.75);font:400 3vh/1.2 SpotifyMixUI,sans-serif;text-align:center;max-width:80vw;"></div></div>';
+      ["mousedown", "mouseup", "pointerdown", "pointerup"].forEach((t) => coverEl.addEventListener(t, (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+      }, true));
+      coverEl.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        hideCoverForUser();
+      }, true);
+      document.body.appendChild(coverEl);
+    }
+    function bestArt(meta) {
+      const a = meta && meta.artwork || [];
+      let best = null;
+      a.forEach((x) => {
+        const w = parseInt(String(x.sizes || "").split("x")[0], 10) || 0;
+        if (!best || w > best.w) best = { src: x.src, w };
+      });
+      return best && best.src;
+    }
+    function renderCover() {
+      if (!document.body) return;
+      if (!coverEl) buildCover();
+      const art = bestArt(cover.meta);
+      const playing = cover.state === "playing";
+      const show = !!art && (cover.forced || playing && Date.now() >= cover.hiddenUntil);
+      if (art) {
+        const q = (k) => coverEl.querySelector('[data-tz="' + k + '"]');
+        if (q("img").getAttribute("src") !== art) {
+          q("img").setAttribute("src", art);
+          q("bg").style.backgroundImage = 'url("' + art + '")';
+        }
+        q("title").textContent = cover.meta.title || "";
+        q("artist").textContent = cover.meta.artist || "";
+      }
+      coverEl.style.display = show ? "block" : "none";
+    }
+    function hideCoverForUser() {
+      cover.forced = false;
+      cover.hiddenUntil = Date.now() + IDLE_MS;
+      renderCover();
+      clearTimeout(idleTimer);
+      idleTimer = setTimeout(renderCover, IDLE_MS + 50);
+    }
+    ["mousemove", "wheel", "keydown"].forEach((ev) => document.addEventListener(ev, (e) => {
+      if (ev === "keydown" && (e.keyCode === 405 || e.keyCode === 406)) return;
+      if (coverEl && coverEl.style.display === "block" && ev === "mousemove" && cover.lastMove && Math.abs(e.screenX - cover.lastMove) < 3) return;
+      cover.lastMove = e.screenX;
+      hideCoverForUser();
+    }, true));
+    document.addEventListener("keydown", (e) => {
+      if (e.keyCode === 405) {
+        cover.forced = !cover.forced;
+        cover.hiddenUntil = 0;
+        renderCover();
+      }
+      if (e.keyCode === 406) {
+        panelVisible = !panelVisible;
+        if (box) box.style.display = panelVisible ? "block" : "none";
+      }
+    }, true);
     const openOrig = window.open;
     window.open = function(u, target) {
       if (target === "_self") return openOrig.apply(window, arguments);
