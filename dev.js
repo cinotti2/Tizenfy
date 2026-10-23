@@ -1,4 +1,4 @@
-/* Tizenfy 1.4.2 per Samsung Tizen 5.0 (Chromium M63) */
+/* Tizenfy 1.4.3 per Samsung Tizen 5.0 (Chromium M63) */
 if (window.top === window && !window.__tzPolyfill) { window.__tzPolyfill = true;
 /**
  * core-js 3.38.1
@@ -46868,7 +46868,7 @@ ${file}:${line}:${column}: ERROR: ${pluginText}${e.text}`;
         box.style.display = panelVisible ? "block" : "none";
         document.body.appendChild(box);
       }
-      box.textContent = "TIZENFY 1.4.2\n" + lines.slice(-26).join("\n") + (errors.length ? "\n\nERRORI (" + errors.length + "):\n" + errors.slice(0, 7).join("\n") : "");
+      box.textContent = "TIZENFY 1.4.3\n" + lines.slice(-26).join("\n") + (errors.length ? "\n\nERRORI (" + errors.length + "):\n" + errors.slice(0, 7).join("\n") : "");
     }
     const log = (l) => {
       lines.push(l);
@@ -47405,6 +47405,16 @@ ${file}:${line}:${column}: ERROR: ${pluginText}${e.text}`;
     ["mousemove", "wheel"].forEach((ev) => document.addEventListener(ev, () => {
       if (tv.shown) hideTv();
     }, true));
+    try {
+      sessionStorage.setItem("premium-banner-closed", "true");
+    } catch (e) {
+    }
+    (function hideBanners() {
+      const st = document.createElement("style");
+      st.setAttribute("data-tz", "nascosti");
+      st.textContent = '[data-testid="home-banner"],[data-testid="premium-banner"]{display:none!important}';
+      (document.head || document.documentElement).appendChild(st);
+    })();
     (function registerKeys() {
       const ok = [];
       try {
