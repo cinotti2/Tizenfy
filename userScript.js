@@ -1,4 +1,4 @@
-/* Tizenfy 1.1.3 per Samsung Tizen 5.0 (Chromium M63) */
+/* Tizenfy 1.1.4 per Samsung Tizen 5.0 (Chromium M63) */
 if (window.top === window && !window.__tzPolyfill) { window.__tzPolyfill = true;
 /**
  * core-js 3.38.1
@@ -46664,6 +46664,8 @@ ${file}:${line}:${column}: ERROR: ${pluginText}${e.text}`;
     const WASM_URL = "https://cdn.jsdelivr.net/npm/esbuild-wasm@0.14.54/esbuild.wasm";
     const CACHE_VER = "v1";
     const origFetch = window.fetch.bind(window);
+    const globalsBefore = new Set(Object.getOwnPropertyNames(window));
+    let firstBundle = null, executedInitial = 0, replayDone = false;
     const origEval = window.eval;
     const lines = [], errors = [];
     let box = null;
@@ -46674,7 +46676,7 @@ ${file}:${line}:${column}: ERROR: ${pluginText}${e.text}`;
         box.style.cssText = "position:fixed;left:12px;bottom:12px;width:52%;max-height:70%;overflow:hidden;z-index:2147483647;background:rgba(0,0,0,0.9);color:#fff;font:14px/1.3 monospace;padding:10px;border:3px solid #1db954;white-space:pre-wrap;word-break:break-all;pointer-events:none;";
         document.body.appendChild(box);
       }
-      box.textContent = "TIZENFY 1.1.3\n" + lines.slice(-16).join("\n") + (errors.length ? "\n\nERRORI (" + errors.length + "):\n" + errors.slice(0, 7).join("\n") : "");
+      box.textContent = "TIZENFY 1.1.4\n" + lines.slice(-16).join("\n") + (errors.length ? "\n\nERRORI (" + errors.length + "):\n" + errors.slice(0, 7).join("\n") : "");
     }
     const log = (l) => {
       lines.push(l);
@@ -46819,12 +46821,41 @@ ${file}:${line}:${column}: ERROR: ${pluginText}${e.text}`;
         const job = queue.shift();
         try {
           const r = await job.p;
-          if (!r.native) execute(r.code, job.el, job.url);
+          if (job.url && !firstBundle) firstBundle = job.el;
+          if (!r.native) {
+            execute(r.code, job.el, job.url);
+            executedInitial++;
+          }
         } catch (e) {
           err(short(job.url) + ": " + (e && e.message));
         }
       }
       running = false;
+      if (executedInitial && !replayDone) {
+        replayDone = true;
+        setTimeout(replayInline, 0);
+      }
+    }
+    function replayInline() {
+      const added = Object.getOwnPropertyNames(window).filter((k) => !globalsBefore.has(k) && !/^__tz|^esbuild/.test(k));
+      log("nuove globali: " + (added.slice(0, 12).join(", ") || "nessuna"));
+      const all = document.getElementsByTagName("script");
+      let n = 0;
+      for (let i = 0; i < all.length; i++) {
+        const el = all[i];
+        if (el.src || el.__tz) continue;
+        const type = (el.getAttribute("type") || "").toLowerCase();
+        if (type && type !== "text/javascript" && type !== "application/javascript") continue;
+        const t = el.textContent || "";
+        if (!t.trim()) continue;
+        log("inline #" + i + " (" + t.length + " car.): " + t.trim().slice(0, 50).replace(/\s+/g, " "));
+        if (/googletagmanager|dataLayer|gtag\(|fbq\(|analytics/i.test(t)) continue;
+        if (!firstBundle || !(firstBundle.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING)) continue;
+        el.__tz = 1;
+        execute(t, el, null);
+        n++;
+      }
+      log("inline rieseguiti: " + n);
     }
     function enqueue(el) {
       el.__tz = 1;
