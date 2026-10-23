@@ -1,4 +1,4 @@
-/* Tizenfy 1.1.2 per Samsung Tizen 5.0 (Chromium M63) */
+/* Tizenfy 1.1.3 per Samsung Tizen 5.0 (Chromium M63) */
 if (window.top === window && !window.__tzPolyfill) { window.__tzPolyfill = true;
 /**
  * core-js 3.38.1
@@ -46674,7 +46674,7 @@ ${file}:${line}:${column}: ERROR: ${pluginText}${e.text}`;
         box.style.cssText = "position:fixed;left:12px;bottom:12px;width:52%;max-height:70%;overflow:hidden;z-index:2147483647;background:rgba(0,0,0,0.9);color:#fff;font:14px/1.3 monospace;padding:10px;border:3px solid #1db954;white-space:pre-wrap;word-break:break-all;pointer-events:none;";
         document.body.appendChild(box);
       }
-      box.textContent = "TIZENFY 1.1.2\n" + lines.slice(-16).join("\n") + (errors.length ? "\n\nERRORI (" + errors.length + "):\n" + errors.slice(0, 7).join("\n") : "");
+      box.textContent = "TIZENFY 1.1.3\n" + lines.slice(-16).join("\n") + (errors.length ? "\n\nERRORI (" + errors.length + "):\n" + errors.slice(0, 7).join("\n") : "");
     }
     const log = (l) => {
       lines.push(l);
@@ -46849,6 +46849,7 @@ ${file}:${line}:${column}: ERROR: ${pluginText}${e.text}`;
     }).observe(document, { childList: true, subtree: true });
     function hijack(node) {
       node.__tz = 1;
+      log("chunk richiesto: " + short(node.src));
       const src = node.src;
       node.setAttribute("type", "text/tz-blocked");
       getCode(src, null).then((r) => {
@@ -46869,6 +46870,49 @@ ${file}:${line}:${column}: ERROR: ${pluginText}${e.text}`;
       if (isTarget(node)) hijack(node);
       return origInsert.apply(this, arguments);
     };
+    function lateListeners(target, evName) {
+      const orig = target.addEventListener;
+      target.addEventListener = function(type, fn, opts) {
+        const r = orig.apply(this, arguments);
+        const done = evName === "DOMContentLoaded" ? document.readyState !== "loading" : document.readyState === "complete";
+        if (type === evName && done && fn) {
+          log("avvio tardivo: " + evName);
+          setTimeout(() => {
+            try {
+              const ev = new Event(evName);
+              typeof fn === "function" ? fn.call(target, ev) : fn.handleEvent(ev);
+            } catch (e) {
+              err(evName + ": " + e.name + " " + e.message);
+            }
+          });
+        }
+        return r;
+      };
+    }
+    lateListeners(document, "DOMContentLoaded");
+    lateListeners(window, "DOMContentLoaded");
+    lateListeners(window, "load");
+    const netFails = {};
+    function netFail(u, why) {
+      const k = short(u) + " " + why;
+      if (netFails[k]) return;
+      netFails[k] = 1;
+      err("rete: " + k);
+    }
+    const fetchBefore = window.fetch;
+    window.fetch = function(input) {
+      const u = input && input.url ? input.url : String(input);
+      return fetchBefore.apply(this, arguments).then(
+        (r) => {
+          if (r.status >= 400) netFail(u, "HTTP " + r.status);
+          return r;
+        },
+        (e) => {
+          netFail(u, e && e.message || "errore");
+          throw e;
+        }
+      );
+    };
     ["error", "warn"].forEach((lvl) => {
       const orig = console[lvl];
       console[lvl] = function() {
@@ -46882,7 +46926,7 @@ ${file}:${line}:${column}: ERROR: ${pluginText}${e.text}`;
     });
     setTimeout(function check() {
       try {
-        const chunks = Object.keys(window).filter((k) => /^webpackChunk/.test(k)).map((k) => k + "=" + (window[k] && window[k].length));
+        const chunks = Object.keys(window).filter((k) => /webpack/i.test(k)).map((k) => k + "=" + (window[k] && window[k].length));
         const root = document.querySelector('#main, #root, [data-testid="root"]') || document.body.firstElementChild;
         const rk = root ? Object.keys(root).filter((k) => /^__react/.test(k) || k === "_reactRootContainer") : [];
         let reactAny = false;
@@ -46895,6 +46939,8 @@ ${file}:${line}:${column}: ERROR: ${pluginText}${e.text}`;
         }
         log("stato: " + document.readyState + " | chunk: " + (chunks.join(",") || "nessuno"));
         log("React attivo sulla pagina: " + (reactAny ? "SI" : "NO") + (root ? " | radice " + (root.id || root.tagName) + (rk.length ? " collegata" : " non collegata") : ""));
+        const res = performance.getEntriesByType("resource").filter((r) => /\.js(\?|$)/.test(r.name));
+        log("file JS scaricati: " + res.length + " | " + res.slice(-4).map((r) => short(r.name)).join(", "));
       } catch (e) {
         err("verifica stato: " + e.message);
       }
