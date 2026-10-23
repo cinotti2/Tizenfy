@@ -1,4 +1,4 @@
-/* Tizenfy 1.1.4 per Samsung Tizen 5.0 (Chromium M63) */
+/* Tizenfy 1.1.5 per Samsung Tizen 5.0 (Chromium M63) */
 if (window.top === window && !window.__tzPolyfill) { window.__tzPolyfill = true;
 /**
  * core-js 3.38.1
@@ -46676,7 +46676,7 @@ ${file}:${line}:${column}: ERROR: ${pluginText}${e.text}`;
         box.style.cssText = "position:fixed;left:12px;bottom:12px;width:52%;max-height:70%;overflow:hidden;z-index:2147483647;background:rgba(0,0,0,0.9);color:#fff;font:14px/1.3 monospace;padding:10px;border:3px solid #1db954;white-space:pre-wrap;word-break:break-all;pointer-events:none;";
         document.body.appendChild(box);
       }
-      box.textContent = "TIZENFY 1.1.4\n" + lines.slice(-16).join("\n") + (errors.length ? "\n\nERRORI (" + errors.length + "):\n" + errors.slice(0, 7).join("\n") : "");
+      box.textContent = "TIZENFY 1.1.5\n" + lines.slice(-16).join("\n") + (errors.length ? "\n\nERRORI (" + errors.length + "):\n" + errors.slice(0, 7).join("\n") : "");
     }
     const log = (l) => {
       lines.push(l);
@@ -46944,6 +46944,42 @@ ${file}:${line}:${column}: ERROR: ${pluginText}${e.text}`;
         }
       );
     };
+    if (!window.__REACT_DEVTOOLS_GLOBAL_HOOK__) {
+      let commits = 0;
+      window.__REACT_DEVTOOLS_GLOBAL_HOOK__ = {
+        supportsFiber: true,
+        isDisabled: false,
+        renderers: /* @__PURE__ */ new Map(),
+        inject() {
+          log("React caricato");
+          return 1;
+        },
+        onCommitFiberRoot() {
+          if (!commits++) log("React ha disegnato la pagina");
+        },
+        onCommitFiberUnmount() {
+        },
+        onPostCommitFiberRoot() {
+        },
+        onScheduleFiberRoot() {
+        },
+        checkDCE() {
+        }
+      };
+    }
+    (function() {
+      const O = XMLHttpRequest.prototype.open, S = XMLHttpRequest.prototype.send;
+      XMLHttpRequest.prototype.open = function(m, u) {
+        this.__tzu = u;
+        return O.apply(this, arguments);
+      };
+      XMLHttpRequest.prototype.send = function() {
+        this.addEventListener("loadend", () => {
+          if (this.status === 0 || this.status >= 400) netFail(this.__tzu, "XHR " + this.status);
+        });
+        return S.apply(this, arguments);
+      };
+    })();
     ["error", "warn"].forEach((lvl) => {
       const orig = console[lvl];
       console[lvl] = function() {
@@ -46957,7 +46993,25 @@ ${file}:${line}:${column}: ERROR: ${pluginText}${e.text}`;
     });
     setTimeout(function check() {
       try {
-        const chunks = Object.keys(window).filter((k) => /webpack/i.test(k)).map((k) => k + "=" + (window[k] && window[k].length));
+        const chunks = Object.keys(window).filter((k) => /webpack|rspack/i.test(k)).map((k) => {
+          const a = window[k];
+          if (!a || typeof a.length !== "number") return k;
+          const ids = [];
+          for (let i = 0; i < a.length; i++) {
+            try {
+              ids.push(String(a[i][0]).slice(0, 40));
+            } catch (e) {
+            }
+          }
+          return k + "=" + a.length + (a.push === Array.prototype.push ? " (runtime ASSENTE)" : " (runtime attivo)") + " [" + ids.join(" / ") + "]";
+        });
+        const sc = document.getElementsByTagName("script");
+        const desc = [];
+        for (let i = 0; i < sc.length; i++) {
+          const el = sc[i];
+          desc.push((el.src ? short(el.src) : "inline" + (el.textContent || "").length) + (el.type ? "{" + el.type + "}" : "") + (el.async ? "+a" : "") + (el.defer ? "+d" : ""));
+        }
+        log("script nella pagina: " + desc.join(", ").slice(0, 300));
         const root = document.querySelector('#main, #root, [data-testid="root"]') || document.body.firstElementChild;
         const rk = root ? Object.keys(root).filter((k) => /^__react/.test(k) || k === "_reactRootContainer") : [];
         let reactAny = false;
