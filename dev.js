@@ -1,4 +1,4 @@
-/* Tizenfy 1.4.3 per Samsung Tizen 5.0 (Chromium M63) */
+/* Tizenfy 1.5.0 per Samsung Tizen 5.0 (Chromium M63) */
 if (window.top === window && !window.__tzPolyfill) { window.__tzPolyfill = true;
 /**
  * core-js 3.38.1
@@ -46868,7 +46868,7 @@ ${file}:${line}:${column}: ERROR: ${pluginText}${e.text}`;
         box.style.display = panelVisible ? "block" : "none";
         document.body.appendChild(box);
       }
-      box.textContent = "TIZENFY 1.4.3\n" + lines.slice(-26).join("\n") + (errors.length ? "\n\nERRORI (" + errors.length + "):\n" + errors.slice(0, 7).join("\n") : "");
+      box.textContent = "TIZENFY 1.5.0\n" + lines.slice(-26).join("\n") + (errors.length ? "\n\nERRORI (" + errors.length + "):\n" + errors.slice(0, 7).join("\n") : "");
     }
     const log = (l) => {
       lines.push(l);
@@ -47308,20 +47308,7 @@ ${file}:${line}:${column}: ERROR: ${pluginText}${e.text}`;
       const c = tv.cache[t.uri] || (tv.cache[t.uri] = {});
       if (c.done) return c;
       c.done = true;
-      try {
-        const r = await origFetch("https://api-partner.spotify.com/pathfinder/v2/query", {
-          method: "POST",
-          headers: apiHeaders(),
-          body: JSON.stringify({ variables: { trackUri: t.uri }, operationName: "canvas", extensions: { persistedQuery: { version: 1, sha256Hash: CANVAS_HASH } } })
-        });
-        const txt = await r.text();
-        const m = txt.match(/https:\/\/canvaz\.scdn\.co\/[^"]+?\.mp4/);
-        if (m) c.video = m[0];
-        log("canvas: " + (m ? "video trovato" : "nessun video") + " (HTTP " + r.status + ")");
-      } catch (e) {
-        log("canvas: errore " + (e && e.message));
-      }
-      if (!c.video && t.artistUri) {
+      if (t.artistUri) {
         const id = t.artistUri.split(":").pop();
         const ac = tv.cache[t.artistUri] || (tv.cache[t.artistUri] = {});
         if (!ac.done) {
@@ -47373,10 +47360,8 @@ ${file}:${line}:${column}: ERROR: ${pluginText}${e.text}`;
       if (tv.track && tv.track.uri === t.uri) return;
       tv.track = t;
       if (!document.body) return;
-      if (!tv.el) buildTv();
-      paintTv();
       loadVisuals(t).then(() => {
-        if (tv.track === t) paintTv();
+        if (tv.track === t) decorateNpv();
       });
     }
     function showTv() {
@@ -47398,13 +47383,28 @@ ${file}:${line}:${column}: ERROR: ${pluginText}${e.text}`;
       lastActivity = Date.now();
       return true;
     }
+    function decorateNpv() {
+      const n = npv();
+      if (!n || !tv.track) return;
+      const c = tv.cache[tv.track.uri] || {};
+      const img = c.image;
+      if (!img || n.__tzBg === img) return;
+      n.__tzBg = img;
+      n.style.setProperty("background-color", "#000", "important");
+      n.style.setProperty("background-image", 'linear-gradient(180deg,rgba(0,0,0,.30) 0%,rgba(0,0,0,.55) 45%,rgba(0,0,0,.92) 100%),url("' + img + '")', "important");
+      n.style.setProperty("background-size", "cover", "important");
+      n.style.setProperty("background-position", "center 20%", "important");
+      n.style.setProperty("background-repeat", "no-repeat", "important");
+      [].forEach.call(n.querySelectorAll("div"), (d) => {
+        const bg = getComputedStyle(d).backgroundColor;
+        if (d.getBoundingClientRect().width > window.innerWidth * 0.9 && bg && bg !== "rgba(0, 0, 0, 0)" && bg !== "transparent") d.style.setProperty("background", "transparent", "important");
+      });
+      log("schermata brano: sfondo con la foto del gruppo");
+    }
     setInterval(() => {
-      if (!tv.shown && Date.now() - lastActivity >= IDLE_MS && isPlaying() && showTv()) log("schermo TV aperto (inattivita)");
-      if (tv.shown && !isPlaying() && Date.now() - lastActivity > 6e4) hideTv();
-    }, 3e3);
-    ["mousemove", "wheel"].forEach((ev) => document.addEventListener(ev, () => {
-      if (tv.shown) hideTv();
-    }, true));
+      if (!npv() && Date.now() - lastActivity >= IDLE_MS && isPlaying() && openNpv()) log("schermata brano aperta (inattivita)");
+      decorateNpv();
+    }, 1500);
     try {
       sessionStorage.setItem("premium-banner-closed", "true");
     } catch (e) {
@@ -47665,10 +47665,7 @@ ${file}:${line}:${column}: ERROR: ${pluginText}${e.text}`;
       const wasLong = okHold.long;
       okHold.at = 0;
       okHold.long = false;
-      if (!wasLong) {
-        if (tv.shown) hideTv();
-        else activate();
-      }
+      if (!wasLong) activate();
       e.preventDefault();
       e.stopPropagation();
     }, true);
@@ -47681,14 +47678,10 @@ ${file}:${line}:${column}: ERROR: ${pluginText}${e.text}`;
       if (typing && k !== K.UP && k !== K.DOWN && k !== K.BACK) return;
       let done = false;
       const mediaKey = [K.PLAYPAUSE, K.PLAY, K.PAUSE, K.STOP, K.NEXT, K.PREV, K.FF, K.RW, K.BLUE].indexOf(k) >= 0;
-      if (tv.shown && k !== K.YELLOW && k !== K.ENTER && !mediaKey) {
-        hideTv();
-        e.preventDefault();
-        e.stopPropagation();
-        return;
-      }
-      if (k === K.YELLOW) done = hideTv() || showTv();
-      else if (k === K.BLUE) {
+      if (k === K.YELLOW) {
+        done = closeNpv() || openNpv();
+        focusEl = null;
+      } else if (k === K.BLUE) {
         panelVisible = !panelVisible;
         if (box) box.style.display = panelVisible ? "block" : "none";
         done = true;
@@ -47711,7 +47704,8 @@ ${file}:${line}:${column}: ERROR: ${pluginText}${e.text}`;
           okHold.long = false;
         } else if (!okHold.long && Date.now() - okHold.at > 700) {
           okHold.long = true;
-          if (!hideTv()) showTv();
+          if (!closeNpv()) openNpv();
+          focusEl = null;
         }
         done = true;
       } else if (k === K.BACK) done = goBack();
