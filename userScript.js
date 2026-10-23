@@ -1,4 +1,4 @@
-/* Tizenfy 1.1.0 per Samsung Tizen 5.0 (Chromium M63) */
+/* Tizenfy 1.1.1 per Samsung Tizen 5.0 (Chromium M63) */
 if (window.top === window && !window.__tzPolyfill) { window.__tzPolyfill = true;
 /**
  * core-js 3.38.1
@@ -46621,6 +46621,38 @@ ${file}:${line}:${column}: ERROR: ${pluginText}${e.text}`;
       this.append(...nodes);
     };
   }
+  if (typeof window.BigInt === "undefined") {
+    const B = function BigInt(v) {
+      if (new.target) throw new TypeError("BigInt is not a constructor");
+      if (typeof v === "string") {
+        const s = v.trim();
+        if (/^0x[0-9a-f]+$/i.test(s)) return parseInt(s, 16);
+        if (/^0b[01]+$/i.test(s)) return parseInt(s.slice(2), 2);
+        if (/^0o[0-7]+$/i.test(s)) return parseInt(s.slice(2), 8);
+        if (s === "") return 0;
+        if (!/^[-+]?\d+$/.test(s)) throw new SyntaxError("Cannot convert " + v + " to a BigInt");
+        return Number(s);
+      }
+      if (typeof v === "boolean") return v ? 1 : 0;
+      const n = Number(v);
+      if (!isFinite(n) || Math.floor(n) !== n) throw new RangeError("The number " + v + " cannot be converted to a BigInt because it is not an integer");
+      return n;
+    };
+    B.asUintN = function(bits, x) {
+      x = Number(x);
+      if (bits >= 53) return x < 0 ? x + Math.pow(2, Math.min(bits, 1023)) : x;
+      const m = Math.pow(2, bits);
+      return (x % m + m) % m;
+    };
+    B.asIntN = function(bits, x) {
+      x = Number(x);
+      if (bits >= 53) return x;
+      const m = Math.pow(2, bits);
+      const r = (x % m + m) % m;
+      return r >= m / 2 ? r - m : r;
+    };
+    window.BigInt = B;
+  }
 
   // loader.js
   (function() {
@@ -46642,7 +46674,7 @@ ${file}:${line}:${column}: ERROR: ${pluginText}${e.text}`;
         box.style.cssText = "position:fixed;left:12px;bottom:12px;width:52%;max-height:70%;overflow:hidden;z-index:2147483647;background:rgba(0,0,0,0.9);color:#fff;font:14px/1.3 monospace;padding:10px;border:3px solid #1db954;white-space:pre-wrap;word-break:break-all;pointer-events:none;";
         document.body.appendChild(box);
       }
-      box.textContent = "TIZENFY 1.1.0\n" + lines.slice(-16).join("\n") + (errors.length ? "\n\nERRORI (" + errors.length + "):\n" + errors.slice(0, 7).join("\n") : "");
+      box.textContent = "TIZENFY 1.1.1\n" + lines.slice(-16).join("\n") + (errors.length ? "\n\nERRORI (" + errors.length + "):\n" + errors.slice(0, 7).join("\n") : "");
     }
     const log = (l) => {
       lines.push(l);
@@ -46754,7 +46786,8 @@ ${file}:${line}:${column}: ERROR: ${pluginText}${e.text}`;
         origEval.call(window, code + (url ? "\n//# sourceURL=" + url : ""));
         return true;
       } catch (e) {
-        err(short(url) + ": " + (e && e.name) + " " + (e && e.message));
+        const at = String(e && e.stack || "").split("\n").filter((l) => /\d+:\d+/.test(l))[0] || "";
+        err(short(url) + ": " + (e && e.name) + " " + (e && e.message) + " | " + at.trim().slice(0, 70));
         return false;
       } finally {
         try {
