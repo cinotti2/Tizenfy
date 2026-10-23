@@ -1,4 +1,4 @@
-/* Tizenfy 1.4.0 per Samsung Tizen 5.0 (Chromium M63) */
+/* Tizenfy 1.4.2 per Samsung Tizen 5.0 (Chromium M63) */
 if (window.top === window && !window.__tzPolyfill) { window.__tzPolyfill = true;
 /**
  * core-js 3.38.1
@@ -46868,7 +46868,7 @@ ${file}:${line}:${column}: ERROR: ${pluginText}${e.text}`;
         box.style.display = panelVisible ? "block" : "none";
         document.body.appendChild(box);
       }
-      box.textContent = "TIZENFY 1.4.0\n" + lines.slice(-26).join("\n") + (errors.length ? "\n\nERRORI (" + errors.length + "):\n" + errors.slice(0, 7).join("\n") : "");
+      box.textContent = "TIZENFY 1.4.2\n" + lines.slice(-26).join("\n") + (errors.length ? "\n\nERRORI (" + errors.length + "):\n" + errors.slice(0, 7).join("\n") : "");
     }
     const log = (l) => {
       lines.push(l);
@@ -47405,6 +47405,22 @@ ${file}:${line}:${column}: ERROR: ${pluginText}${e.text}`;
     ["mousemove", "wheel"].forEach((ev) => document.addEventListener(ev, () => {
       if (tv.shown) hideTv();
     }, true));
+    (function registerKeys() {
+      const ok = [];
+      try {
+        if (window.tizen && tizen.tvinputdevice) {
+          ["ChannelUp", "ChannelDown", "ColorF2Yellow", "ColorF3Blue", "MediaPlayPause"].forEach((k) => {
+            try {
+              tizen.tvinputdevice.registerKey(k);
+              ok.push(k);
+            } catch (e) {
+            }
+          });
+        }
+      } catch (e) {
+      }
+      log("tasti registrati dalla pagina: " + (ok.join(", ") || "nessuno (API Tizen assente)"));
+    })();
     const clickTid = (id) => {
       const el = document.querySelector('[data-testid="' + id + '"]');
       if (el) {
@@ -47453,7 +47469,9 @@ ${file}:${line}:${column}: ERROR: ${pluginText}${e.text}`;
       RED: 403,
       GREEN: 404,
       YELLOW: 405,
-      BLUE: 406
+      BLUE: 406,
+      CHUP: 427,
+      CHDOWN: 428
     };
     const SEL = 'a[href],button,input,textarea,select,[role="button"],[role="link"],[role="tab"],[role="menuitem"],[role="option"],[role="switch"],[role="checkbox"],[tabindex]:not([tabindex="-1"]),[class*="on-click"],[class*="--interactive"],[data-testid="track-row"],[data-testid="floating-now-playing-bar"]';
     let focusEl = null, ringHidden = true, ring = null;
@@ -47631,14 +47649,29 @@ ${file}:${line}:${column}: ERROR: ${pluginText}${e.text}`;
       }
       return false;
     }
+    const okHold = { at: 0, long: false };
+    document.addEventListener("keyup", (e) => {
+      if (e.keyCode !== K.ENTER || !okHold.at) return;
+      const wasLong = okHold.long;
+      okHold.at = 0;
+      okHold.long = false;
+      if (!wasLong) {
+        if (tv.shown) hideTv();
+        else activate();
+      }
+      e.preventDefault();
+      e.stopPropagation();
+    }, true);
     document.addEventListener("keydown", (e) => {
-      const k = e.keyCode;
+      let k = e.keyCode;
+      if (k === 427) k = 405;
+      if (k === 428) k = 406;
       const ae = document.activeElement;
       const typing = ae && /^(INPUT|TEXTAREA)$/.test(ae.tagName);
       if (typing && k !== K.UP && k !== K.DOWN && k !== K.BACK) return;
       let done = false;
       const mediaKey = [K.PLAYPAUSE, K.PLAY, K.PAUSE, K.STOP, K.NEXT, K.PREV, K.FF, K.RW, K.BLUE].indexOf(k) >= 0;
-      if (tv.shown && k !== K.YELLOW && !mediaKey) {
+      if (tv.shown && k !== K.YELLOW && k !== K.ENTER && !mediaKey) {
         hideTv();
         e.preventDefault();
         e.stopPropagation();
@@ -47662,8 +47695,16 @@ ${file}:${line}:${column}: ERROR: ${pluginText}${e.text}`;
       } else if (k === K.DOWN) {
         if (typing) ae.blur();
         done = move("down");
-      } else if (k === K.ENTER) done = activate();
-      else if (k === K.BACK) done = goBack();
+      } else if (k === K.ENTER) {
+        if (!okHold.at) {
+          okHold.at = Date.now();
+          okHold.long = false;
+        } else if (!okHold.long && Date.now() - okHold.at > 700) {
+          okHold.long = true;
+          if (!hideTv()) showTv();
+        }
+        done = true;
+      } else if (k === K.BACK) done = goBack();
       if (done) {
         e.preventDefault();
         e.stopPropagation();
