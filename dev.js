@@ -1,4 +1,4 @@
-/* Tizenfy 1.2.1 per Samsung Tizen 5.0 (Chromium M63) */
+/* Tizenfy 1.2.2 per Samsung Tizen 5.0 (Chromium M63) */
 if (window.top === window && !window.__tzPolyfill) { window.__tzPolyfill = true;
 /**
  * core-js 3.38.1
@@ -46861,7 +46861,7 @@ ${file}:${line}:${column}: ERROR: ${pluginText}${e.text}`;
         box.style.display = panelVisible ? "block" : "none";
         document.body.appendChild(box);
       }
-      box.textContent = "TIZENFY 1.2.1\n" + lines.slice(-26).join("\n") + (errors.length ? "\n\nERRORI (" + errors.length + "):\n" + errors.slice(0, 7).join("\n") : "");
+      box.textContent = "TIZENFY 1.2.2\n" + lines.slice(-26).join("\n") + (errors.length ? "\n\nERRORI (" + errors.length + "):\n" + errors.slice(0, 7).join("\n") : "");
     }
     const log = (l) => {
       lines.push(l);
@@ -47188,67 +47188,45 @@ ${file}:${line}:${column}: ERROR: ${pluginText}${e.text}`;
         this.artwork = o.artwork || [];
       };
     }
-    let coverEl = null, idleTimer = null;
-    const IDLE_MS = 15e3;
-    function buildCover() {
-      coverEl = document.createElement("div");
-      coverEl.style.cssText = "position:fixed;top:0;left:0;right:0;bottom:0;z-index:2147483646;background:#000;display:none;overflow:hidden;cursor:none;";
-      coverEl.innerHTML = '<div data-tz="bg" style="position:absolute;top:-10%;left:-10%;right:-10%;bottom:-10%;background-size:cover;background-position:center;filter:blur(60px) brightness(.45);"></div><div style="position:absolute;top:0;left:0;right:0;bottom:0;display:flex;flex-direction:column;align-items:center;justify-content:center;"><img data-tz="img" style="height:64vh;width:64vh;object-fit:cover;box-shadow:0 20px 60px rgba(0,0,0,.6);border-radius:8px;"><div data-tz="title" style="margin-top:4vh;color:#fff;font:700 4.2vh/1.2 SpotifyMixUITitle,SpotifyMixUI,sans-serif;text-align:center;max-width:80vw;"></div><div data-tz="artist" style="margin-top:1.2vh;color:rgba(255,255,255,.75);font:400 3vh/1.2 SpotifyMixUI,sans-serif;text-align:center;max-width:80vw;"></div></div>';
-      ["mousedown", "mouseup", "pointerdown", "pointerup"].forEach((t) => coverEl.addEventListener(t, (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-      }, true));
-      coverEl.addEventListener("click", (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        hideCoverForUser();
-      }, true);
-      document.body.appendChild(coverEl);
-    }
-    function bestArt(meta) {
-      const a = meta && meta.artwork || [];
-      let best = null;
-      a.forEach((x) => {
-        const w = parseInt(String(x.sizes || "").split("x")[0], 10) || 0;
-        if (!best || w > best.w) best = { src: x.src, w };
-      });
-      return best && best.src;
-    }
     function renderCover() {
-      if (!document.body) return;
-      if (!coverEl) buildCover();
-      const art = bestArt(cover.meta);
-      const playing = cover.state === "playing";
-      const show = !!art && (cover.forced || playing && Date.now() >= cover.hiddenUntil);
-      if (art) {
-        const q = (k) => coverEl.querySelector('[data-tz="' + k + '"]');
-        if (q("img").getAttribute("src") !== art) {
-          q("img").setAttribute("src", art);
-          q("bg").style.backgroundImage = 'url("' + art + '")';
-        }
-        q("title").textContent = cover.meta.title || "";
-        q("artist").textContent = cover.meta.artist || "";
-      }
-      coverEl.style.display = show ? "block" : "none";
     }
-    function hideCoverForUser() {
-      cover.forced = false;
-      cover.hiddenUntil = Date.now() + IDLE_MS;
-      renderCover();
-      clearTimeout(idleTimer);
-      idleTimer = setTimeout(renderCover, IDLE_MS + 50);
-    }
-    ["mousemove", "wheel", "keydown"].forEach((ev) => document.addEventListener(ev, (e) => {
-      if (ev === "keydown" && (e.keyCode === 405 || e.keyCode === 406)) return;
-      if (coverEl && coverEl.style.display === "block" && ev === "mousemove" && cover.lastMove && Math.abs(e.screenX - cover.lastMove) < 3) return;
-      cover.lastMove = e.screenX;
-      hideCoverForUser();
+    const IDLE_MS = 15e3;
+    let lastActivity = Date.now();
+    ["mousemove", "mousedown", "wheel", "keydown"].forEach((ev) => document.addEventListener(ev, () => {
+      lastActivity = Date.now();
     }, true));
+    const bar = () => document.querySelector('[data-testid="floating-now-playing-bar"]');
+    const npv = () => document.querySelector('[data-testid="npv-container"]');
+    function isPlaying() {
+      if (cover.state === "playing") return true;
+      const b = bar();
+      if (!b) return false;
+      return [].some.call(b.querySelectorAll("button"), (x) => /pausa|pause/i.test(x.getAttribute("aria-label") || ""));
+    }
+    function openNpv() {
+      const b = bar();
+      if (b && !npv()) {
+        b.click();
+        return true;
+      }
+      return false;
+    }
+    function closeNpv() {
+      const n = npv();
+      if (!n) return false;
+      const btn = n.querySelector("button[aria-label]");
+      if (btn) {
+        btn.click();
+        return true;
+      }
+      return false;
+    }
+    setInterval(() => {
+      if (Date.now() - lastActivity >= IDLE_MS && isPlaying() && openNpv()) log("schermata brano aperta (inattivita)");
+    }, 3e3);
     document.addEventListener("keydown", (e) => {
       if (e.keyCode === 405) {
-        cover.forced = !cover.forced;
-        cover.hiddenUntil = 0;
-        renderCover();
+        if (!closeNpv()) openNpv();
       }
       if (e.keyCode === 406) {
         panelVisible = !panelVisible;
