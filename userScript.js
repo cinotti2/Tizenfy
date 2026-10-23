@@ -1,4 +1,4 @@
-/* Tizenfy 1.1.5 per Samsung Tizen 5.0 (Chromium M63) */
+/* Tizenfy 1.1.6 per Samsung Tizen 5.0 (Chromium M63) */
 if (window.top === window && !window.__tzPolyfill) { window.__tzPolyfill = true;
 /**
  * core-js 3.38.1
@@ -46653,6 +46653,26 @@ ${file}:${line}:${column}: ERROR: ${pluginText}${e.text}`;
     };
     window.BigInt = B;
   }
+  (function() {
+    let native = false;
+    try {
+      native = "signal" in new Request("https://example.com/");
+    } catch (e) {
+    }
+    if (native) return;
+    const f = window.fetch;
+    window.fetch = function(input, init) {
+      const sig = init && init.signal;
+      const p = f.apply(this, arguments);
+      if (!sig || typeof sig.addEventListener !== "function") return p;
+      const abortErr = () => new DOMException("The operation was aborted.", "AbortError");
+      if (sig.aborted) return Promise.reject(abortErr());
+      return new Promise((res, rej) => {
+        sig.addEventListener("abort", () => rej(abortErr()));
+        p.then(res, rej);
+      });
+    };
+  })();
 
   // loader.js
   (function() {
@@ -46673,10 +46693,10 @@ ${file}:${line}:${column}: ERROR: ${pluginText}${e.text}`;
       if (!document.body) return;
       if (!box || !box.parentNode) {
         box = document.createElement("div");
-        box.style.cssText = "position:fixed;left:12px;bottom:12px;width:52%;max-height:70%;overflow:hidden;z-index:2147483647;background:rgba(0,0,0,0.9);color:#fff;font:14px/1.3 monospace;padding:10px;border:3px solid #1db954;white-space:pre-wrap;word-break:break-all;pointer-events:none;";
+        box.style.cssText = "position:fixed;left:12px;bottom:12px;width:62%;max-height:88%;overflow:hidden;z-index:2147483647;background:rgba(0,0,0,0.9);color:#fff;font:13px/1.25 monospace;padding:10px;border:3px solid #1db954;white-space:pre-wrap;word-break:break-all;pointer-events:none;";
         document.body.appendChild(box);
       }
-      box.textContent = "TIZENFY 1.1.5\n" + lines.slice(-16).join("\n") + (errors.length ? "\n\nERRORI (" + errors.length + "):\n" + errors.slice(0, 7).join("\n") : "");
+      box.textContent = "TIZENFY 1.1.6\n" + lines.slice(-26).join("\n") + (errors.length ? "\n\nERRORI (" + errors.length + "):\n" + errors.slice(0, 7).join("\n") : "");
     }
     const log = (l) => {
       lines.push(l);
@@ -46836,7 +46856,38 @@ ${file}:${line}:${column}: ERROR: ${pluginText}${e.text}`;
         setTimeout(replayInline, 0);
       }
     }
+    function spyRuntime() {
+      const k = Object.keys(window).filter((x) => /rspackChunk|webpackChunk/.test(x))[0];
+      if (!k) {
+        log("runtime: nessun registro chunk");
+        return;
+      }
+      try {
+        window[k].push([["tz-spy"], {}, function(req) {
+          window.__tzReq = req;
+          const nDef = req.m ? Object.keys(req.m).length : -1;
+          const nRun = req.c ? Object.keys(req.c).length : -1;
+          log("runtime: moduli definiti " + nDef + ", eseguiti " + nRun + ", percorso " + String(req.p).slice(0, 50));
+          if (req.e) {
+            const e0 = req.e;
+            req.e = function(id) {
+              log("modulo dinamico richiesto: " + id + " -> " + (req.u ? short(req.u(id)) : "?"));
+              return e0.apply(this, arguments).then((x) => {
+                log("modulo dinamico pronto: " + id);
+                return x;
+              }, (er) => {
+                err("modulo dinamico " + id + ": " + (er && er.message));
+                throw er;
+              });
+            };
+          }
+        }]);
+      } catch (e) {
+        err("spia runtime: " + e.message);
+      }
+    }
     function replayInline() {
+      spyRuntime();
       const added = Object.getOwnPropertyNames(window).filter((k) => !globalsBefore.has(k) && !/^__tz|^esbuild/.test(k));
       log("nuove globali: " + (added.slice(0, 12).join(", ") || "nessuna"));
       const all = document.getElementsByTagName("script");
@@ -46930,20 +46981,43 @@ ${file}:${line}:${column}: ERROR: ${pluginText}${e.text}`;
       netFails[k] = 1;
       err("rete: " + k);
     }
+    const pending = /* @__PURE__ */ new Map();
+    let reqSeq = 0;
     const fetchBefore = window.fetch;
     window.fetch = function(input) {
       const u = input && input.url ? input.url : String(input);
+      const id = ++reqSeq;
+      pending.set(id, "F " + short(u));
+      const key = /\/api\/token|\/api\/server-time|translations|\.json(\?|$)|apresolve|clienttoken/i.test(u);
+      const t0 = Date.now();
+      if (key) log("richiesta: " + short(u));
       return fetchBefore.apply(this, arguments).then(
         (r) => {
+          pending.delete(id);
+          if (key) log("risposta " + r.status + " in " + ((Date.now() - t0) / 1e3).toFixed(1) + " s: " + short(u));
           if (r.status >= 400) netFail(u, "HTTP " + r.status);
           return r;
         },
         (e) => {
+          pending.delete(id);
           netFail(u, e && e.message || "errore");
           throw e;
         }
       );
     };
+    if (navigator.serviceWorker && navigator.serviceWorker.register) {
+      const reg = navigator.serviceWorker.register.bind(navigator.serviceWorker);
+      navigator.serviceWorker.register = function(u) {
+        log("service worker richiesto: " + short(u));
+        return reg.apply(null, arguments).then((r) => {
+          log("service worker registrato");
+          return r;
+        }, (e) => {
+          err("service worker: " + (e && e.message));
+          throw e;
+        });
+      };
+    }
     if (!window.__REACT_DEVTOOLS_GLOBAL_HOOK__) {
       let commits = 0;
       window.__REACT_DEVTOOLS_GLOBAL_HOOK__ = {
@@ -46974,7 +47048,10 @@ ${file}:${line}:${column}: ERROR: ${pluginText}${e.text}`;
         return O.apply(this, arguments);
       };
       XMLHttpRequest.prototype.send = function() {
+        const id = ++reqSeq;
+        pending.set(id, "X " + short(this.__tzu));
         this.addEventListener("loadend", () => {
+          pending.delete(id);
           if (this.status === 0 || this.status >= 400) netFail(this.__tzu, "XHR " + this.status);
         });
         return S.apply(this, arguments);
@@ -47011,7 +47088,10 @@ ${file}:${line}:${column}: ERROR: ${pluginText}${e.text}`;
           const el = sc[i];
           desc.push((el.src ? short(el.src) : "inline" + (el.textContent || "").length) + (el.type ? "{" + el.type + "}" : "") + (el.async ? "+a" : "") + (el.defer ? "+d" : ""));
         }
-        log("script nella pagina: " + desc.join(", ").slice(0, 300));
+        log("richieste ancora in corso: " + (Array.from(pending.values()).slice(0, 6).join(", ") || "nessuna"));
+        const ifr = Array.prototype.map.call(document.getElementsByTagName("iframe"), (f) => short(f.src) || "vuoto");
+        log("iframe: " + (ifr.join(", ") || "nessuno"));
+        if (window.__tzReq && window.__tzReq.c) log("moduli eseguiti dopo 30 s: " + Object.keys(window.__tzReq.c).length);
         const root = document.querySelector('#main, #root, [data-testid="root"]') || document.body.firstElementChild;
         const rk = root ? Object.keys(root).filter((k) => /^__react/.test(k) || k === "_reactRootContainer") : [];
         let reactAny = false;
