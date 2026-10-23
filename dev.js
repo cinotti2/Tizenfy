@@ -1,4 +1,4 @@
-/* Tizenfy 1.5.0 per Samsung Tizen 5.0 (Chromium M63) */
+/* Tizenfy 1.5.1 per Samsung Tizen 5.0 (Chromium M63) */
 if (window.top === window && !window.__tzPolyfill) { window.__tzPolyfill = true;
 /**
  * core-js 3.38.1
@@ -46868,7 +46868,7 @@ ${file}:${line}:${column}: ERROR: ${pluginText}${e.text}`;
         box.style.display = panelVisible ? "block" : "none";
         document.body.appendChild(box);
       }
-      box.textContent = "TIZENFY 1.5.0\n" + lines.slice(-26).join("\n") + (errors.length ? "\n\nERRORI (" + errors.length + "):\n" + errors.slice(0, 7).join("\n") : "");
+      box.textContent = "TIZENFY 1.5.1\n" + lines.slice(-26).join("\n") + (errors.length ? "\n\nERRORI (" + errors.length + "):\n" + errors.slice(0, 7).join("\n") : "");
     }
     const log = (l) => {
       lines.push(l);
@@ -47272,12 +47272,26 @@ ${file}:${line}:${column}: ERROR: ${pluginText}${e.text}`;
       }
       return false;
     }
+    function npvRoot() {
+      const n = npv();
+      if (!n) return null;
+      let root = n;
+      const vw = window.innerWidth, vh = window.innerHeight;
+      for (let p = n.parentElement; p && p !== document.body; p = p.parentElement) {
+        const r = p.getBoundingClientRect();
+        if (r.width >= vw * 0.9 && r.height >= vh * 0.9) root = p;
+        else break;
+      }
+      return root;
+    }
     function closeNpv() {
       const n = npv();
       if (!n) return false;
-      const btn = n.querySelector("button[aria-label]");
-      if (btn) {
-        btn.click();
+      let scope = n;
+      for (let i = 0; i < 4 && scope.parentElement; i++) scope = scope.parentElement;
+      const btns = [].filter.call(scope.querySelectorAll("button[aria-label]"), (b) => /chiudi|close/i.test(b.getAttribute("aria-label")));
+      if (btns[0]) {
+        btns[0].click();
         return true;
       }
       return false;
@@ -47315,12 +47329,23 @@ ${file}:${line}:${column}: ERROR: ${pluginText}${e.text}`;
           ac.done = true;
           try {
             const r = await origFetch("https://api.spotify.com/v1/artists/" + id, { headers: { authorization: "Bearer " + auth.token } });
-            const j = await r.json();
+            const j = r.ok ? await r.json() : {};
             const im = (j.images || []).slice().sort((x, y) => (y.width || 0) - (x.width || 0))[0];
             if (im) ac.image = im.url;
-            log("foto artista: " + (im ? "trovata" : "assente") + " (HTTP " + r.status + ")");
+            log("foto artista (API): " + (im ? "trovata" : "assente") + " HTTP " + r.status);
           } catch (e) {
-            log("foto artista: errore " + (e && e.message));
+            log("foto artista (API): errore " + (e && e.message));
+          }
+          if (!ac.image) {
+            try {
+              const r = await origFetch("/artist/" + id, { credentials: "same-origin" });
+              const html = await r.text();
+              const m = html.match(/property="og:image"\s+content="([^"]+)"/) || html.match(/content="([^"]+)"\s+property="og:image"/);
+              if (m) ac.image = m[1].replace(/&amp;/g, "&");
+              log("foto artista (pagina): " + (m ? "trovata" : "assente") + " HTTP " + r.status);
+            } catch (e) {
+              log("foto artista (pagina): errore " + (e && e.message));
+            }
           }
         }
         c.image = ac.image;
@@ -47388,16 +47413,24 @@ ${file}:${line}:${column}: ERROR: ${pluginText}${e.text}`;
       if (!n || !tv.track) return;
       const c = tv.cache[tv.track.uri] || {};
       const img = c.image;
-      if (!img || n.__tzBg === img) return;
-      n.__tzBg = img;
-      n.style.setProperty("background-color", "#000", "important");
-      n.style.setProperty("background-image", 'linear-gradient(180deg,rgba(0,0,0,.30) 0%,rgba(0,0,0,.55) 45%,rgba(0,0,0,.92) 100%),url("' + img + '")', "important");
-      n.style.setProperty("background-size", "cover", "important");
-      n.style.setProperty("background-position", "center 20%", "important");
-      n.style.setProperty("background-repeat", "no-repeat", "important");
-      [].forEach.call(n.querySelectorAll("div"), (d) => {
-        const bg = getComputedStyle(d).backgroundColor;
-        if (d.getBoundingClientRect().width > window.innerWidth * 0.9 && bg && bg !== "rgba(0, 0, 0, 0)" && bg !== "transparent") d.style.setProperty("background", "transparent", "important");
+      const root = npvRoot();
+      if (!img || !root || root.__tzBg === img) return;
+      root.__tzBg = img;
+      const set = (el, k, v) => el.style.setProperty(k, v, "important");
+      set(root, "background-color", "#000");
+      set(root, "background-image", 'linear-gradient(180deg,rgba(0,0,0,.30) 0%,rgba(0,0,0,.55) 45%,rgba(0,0,0,.92) 100%),url("' + img + '")');
+      set(root, "background-size", "cover");
+      set(root, "background-position", "center 20%");
+      set(root, "background-repeat", "no-repeat");
+      const vw = window.innerWidth, vh = window.innerHeight;
+      [].forEach.call(root.querySelectorAll("*"), (d) => {
+        const r = d.getBoundingClientRect();
+        if (r.width < vw * 0.9 || r.height < vh * 0.3) return;
+        const cs = getComputedStyle(d);
+        if (cs.backgroundImage !== "none" || cs.backgroundColor !== "rgba(0, 0, 0, 0)" && cs.backgroundColor !== "transparent") {
+          set(d, "background-image", "none");
+          set(d, "background-color", "transparent");
+        }
       });
       log("schermata brano: sfondo con la foto del gruppo");
     }
