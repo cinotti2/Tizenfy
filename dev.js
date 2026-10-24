@@ -1,4 +1,4 @@
-/* Tizenfy 1.5.1 per Samsung Tizen 5.0 (Chromium M63) */
+/* Tizenfy 1.6.1 per Samsung Tizen 5.0 (Chromium M63) */
 if (window.top === window && !window.__tzPolyfill) { window.__tzPolyfill = true;
 /**
  * core-js 3.38.1
@@ -46868,7 +46868,7 @@ ${file}:${line}:${column}: ERROR: ${pluginText}${e.text}`;
         box.style.display = panelVisible ? "block" : "none";
         document.body.appendChild(box);
       }
-      box.textContent = "TIZENFY 1.5.1\n" + lines.slice(-26).join("\n") + (errors.length ? "\n\nERRORI (" + errors.length + "):\n" + errors.slice(0, 7).join("\n") : "");
+      box.textContent = "TIZENFY 1.6.1\n" + lines.slice(-26).join("\n") + (errors.length ? "\n\nERRORI (" + errors.length + "):\n" + errors.slice(0, 7).join("\n") : "");
     }
     const log = (l) => {
       lines.push(l);
@@ -47260,6 +47260,8 @@ ${file}:${line}:${column}: ERROR: ${pluginText}${e.text}`;
     const npv = () => document.querySelector('[data-testid="npv-container"]');
     function isPlaying() {
       if (cover.state === "playing") return true;
+      const np = document.querySelector('[data-testid="npv-play-button"]');
+      if (np) return /pausa|pause/i.test(np.getAttribute("aria-label") || "");
       const b = bar();
       if (!b) return false;
       return [].some.call(b.querySelectorAll("button"), (x) => /pausa|pause/i.test(x.getAttribute("aria-label") || ""));
@@ -47284,12 +47286,15 @@ ${file}:${line}:${column}: ERROR: ${pluginText}${e.text}`;
       }
       return root;
     }
+    function npvButtons(re) {
+      let scope = npv();
+      if (!scope) return [];
+      for (let i = 0; i < 4 && scope.parentElement && scope.parentElement !== document.body && scope.parentElement !== document.documentElement; i++) scope = scope.parentElement;
+      return [].filter.call(scope.querySelectorAll("button[aria-label]"), (b) => re.test(b.getAttribute("aria-label")) && !(typeof tv !== "undefined" && tv.el && tv.el.contains(b)));
+    }
     function closeNpv() {
-      const n = npv();
-      if (!n) return false;
-      let scope = n;
-      for (let i = 0; i < 4 && scope.parentElement; i++) scope = scope.parentElement;
-      const btns = [].filter.call(scope.querySelectorAll("button[aria-label]"), (b) => /chiudi|close/i.test(b.getAttribute("aria-label")));
+      if (!npv()) return false;
+      const btns = npvButtons(/chiudi|close/i);
       if (btns[0]) {
         btns[0].click();
         return true;
@@ -47298,17 +47303,44 @@ ${file}:${line}:${column}: ERROR: ${pluginText}${e.text}`;
     }
     const CANVAS_HASH = "575138ab27cd5c1b3e54da54d0a7cc8d85485402de26340c2145f0f6bb5e7a9f";
     const tv = { el: null, track: null, shown: false, cache: {} };
+    const ICON = { "prev": '<path d="M6 5h2v14H6zM20 5v14L9 12z"/>', "next": '<path d="M16 5h2v14h-2zM4 5v14l11-7z"/>', "play": '<path d="M7 4v16l13-8z"/>', "pause": '<path d="M6 4h4v16H6zM14 4h4v16h-4z"/>', "shuffle": '<path d="M17 4l4 4-4 4V9h-2.2l-3 3.4-1.3-1.5L13.9 7H17zM3 7h4.1l9.9 11H17v-3l4 4-4 4v-3h-1.9L5.2 9H3zM3 17h2.2l2.6-2.9 1.3 1.5L7.1 19H3z"/>', "repeat": '<path d="M7 7h10v3l4-4-4-4v3H5v6h2zM17 17H7v-3l-4 4 4 4v-3h12v-6h-2z"/>', "heart": '<path d="M12 21s-7.5-4.6-9.5-9.1C1 8.5 3.2 5 6.6 5c2 0 3.4 1.1 4.1 2.2h2.6C14 6.1 15.4 5 17.4 5 20.8 5 23 8.5 21.5 11.9 19.5 16.4 12 21 12 21z"/>', "close": '<path d="M5 9l7 7 7-7-1.4-1.4L12 13.2 6.4 7.6z"/>' };
+    const svg = (n, sz) => '<svg viewBox="0 0 24 24" width="' + sz + '" height="' + sz + '" fill="currentColor" style="display:block">' + ICON[n] + "</svg>";
+    function tvButton(id, icon, size2, big) {
+      return '<button data-tv="' + id + '" aria-label="' + id + '" style="background:' + (big ? "#fff" : "transparent") + ";color:" + (big ? "#000" : "#fff") + ";border:0;border-radius:50%;width:" + (big ? 11 : 7.5) + "vh;height:" + (big ? 11 : 7.5) + 'vh;margin:0 1.6vw;display:flex;align-items:center;justify-content:center;cursor:pointer;">' + svg(icon, size2) + "</button>";
+    }
     function buildTv() {
       const d = document.createElement("div");
-      d.style.cssText = "position:fixed;top:0;left:0;right:0;bottom:0;z-index:2147483646;background:#000;display:none;overflow:hidden;cursor:none;";
-      d.innerHTML = '<div data-tv="bg" style="position:absolute;top:0;left:0;right:0;bottom:0;background-size:cover;background-position:center 25%;transition:opacity .8s;"></div><video data-tv="video" muted loop playsinline style="position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;display:none;"></video><div style="position:absolute;left:0;right:0;bottom:0;height:55%;background:linear-gradient(to top,rgba(0,0,0,.85),rgba(0,0,0,0));"></div><div style="position:absolute;left:5vw;bottom:7vh;display:flex;align-items:flex-end;"><img data-tv="cover" style="width:20vh;height:20vh;object-fit:cover;border-radius:6px;box-shadow:0 10px 40px rgba(0,0,0,.6);"><div style="margin-left:3vh;max-width:70vw;"><div data-tv="title" style="color:#fff;font:700 5.5vh/1.15 SpotifyMixUITitle,SpotifyMixUI,sans-serif;"></div><div data-tv="artist" style="margin-top:1vh;color:rgba(255,255,255,.8);font:400 3.4vh/1.2 SpotifyMixUI,sans-serif;"></div></div></div>';
-      ["mousedown", "mouseup", "click"].forEach((t) => d.addEventListener(t, (e) => {
+      d.style.cssText = "position:fixed;top:0;left:0;right:0;bottom:0;z-index:2147483640;background:#000;display:none;overflow:hidden;";
+      d.innerHTML = '<div data-tv="bg" style="position:absolute;top:0;left:0;right:0;bottom:0;background-size:cover;background-position:center 20%;"></div><div style="position:absolute;top:0;left:0;right:0;bottom:0;background:linear-gradient(180deg,rgba(0,0,0,.25) 0%,rgba(0,0,0,.35) 40%,rgba(0,0,0,.9) 100%);"></div><button data-tv="close" aria-label="Chiudi" style="position:absolute;top:3vh;left:2.5vw;background:transparent;border:0;color:#fff;cursor:pointer;">' + svg("close", "5vh") + '</button><div style="position:absolute;left:5vw;right:5vw;bottom:5vh;"><div style="display:flex;align-items:flex-end;"><img data-tv="cover" style="width:22vh;height:22vh;object-fit:cover;border-radius:6px;box-shadow:0 10px 40px rgba(0,0,0,.6);"><div style="margin-left:3vh;flex:1;min-width:0;"><div data-tv="title" style="color:#fff;font:700 5.5vh/1.15 SpotifyMixUITitle,SpotifyMixUI,sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"></div><div data-tv="artist" style="margin-top:1vh;color:rgba(255,255,255,.8);font:400 3.4vh/1.2 SpotifyMixUI,sans-serif;"></div></div><button data-tv="like" aria-label="tz-cuore" style="background:transparent;border:0;color:#fff;cursor:pointer;margin-left:2vw;width:7vh;height:7vh;display:flex;align-items:center;justify-content:center;">' + svg("heart", "4.5vh") + '</button></div><div style="display:flex;align-items:center;margin-top:3.5vh;color:rgba(255,255,255,.8);font:400 2.2vh SpotifyMixUI,sans-serif;"><span data-tv="pos" style="width:6vw;"></span><div style="flex:1;height:.6vh;background:rgba(255,255,255,.3);border-radius:1vh;overflow:hidden;"><div data-tv="bar" style="height:100%;width:0;background:#fff;"></div></div><span data-tv="dur" style="width:6vw;text-align:right;"></span></div><div style="display:flex;align-items:center;justify-content:center;margin-top:2.5vh;">' + tvButton("shuffle", "shuffle", "4vh") + tvButton("prev", "prev", "4.5vh") + tvButton("play", "pause", "5vh", true) + tvButton("next", "next", "4.5vh") + tvButton("repeat", "repeat", "4vh") + "</div></div>";
+      const act = {
+        close: () => hideTv(),
+        shuffle: () => clickTid("npv-shuffle-button"),
+        prev: () => clickTid("npv-skip-previous-button"),
+        play: () => playPause(),
+        next: () => clickTid("npv-skip-forward-button"),
+        repeat: () => clickTid("npv-repeat-button"),
+        like: () => {
+          const l = npvLike();
+          if (l) l.click();
+        }
+      };
+      d.addEventListener("click", (e) => {
+        const btn = e.target.closest && e.target.closest("[data-tv]");
         e.preventDefault();
         e.stopPropagation();
-        if (t === "click") hideTv();
+        if (btn && act[btn.getAttribute("data-tv")]) {
+          act[btn.getAttribute("data-tv")]();
+          setTimeout(syncTv, 300);
+        }
+      }, true);
+      ["mousedown", "mouseup"].forEach((t) => d.addEventListener(t, (e) => {
+        e.stopPropagation();
       }, true));
       document.body.appendChild(d);
       tv.el = d;
+    }
+    function npvLike() {
+      return npvButtons(/piace|preferit|libreria|like|salva/i)[0] || null;
     }
     const q = (k) => tv.el.querySelector('[data-tv="' + k + '"]');
     function apiHeaders() {
@@ -47352,92 +47384,95 @@ ${file}:${line}:${column}: ERROR: ${pluginText}${e.text}`;
       }
       return c;
     }
-    function paintTv() {
-      if (!tv.el || !tv.track) return;
-      const t = tv.track, c = tv.cache[t.uri] || {};
-      q("title").textContent = t.name;
-      q("artist").textContent = t.artist;
-      if (q("cover").getAttribute("src") !== t.cover && t.cover) q("cover").setAttribute("src", t.cover);
-      const v = q("video");
-      if (c.video) {
-        if (v.getAttribute("src") !== c.video) {
-          v.setAttribute("src", c.video);
-        }
-        v.style.display = "block";
-        if (tv.shown) {
-          const p = v.play();
-          if (p && p.catch) p.catch(() => {
-          });
-        }
-      } else {
-        v.style.display = "none";
-        try {
-          v.pause();
-        } catch (e) {
+    const sec = (t) => {
+      const p = String(t || "").trim().split(":").map(Number);
+      return p.some(isNaN) ? 0 : p.reduce((x, y) => x * 60 + y, 0);
+    };
+    function syncTv() {
+      if (!tv.shown || !tv.el) return;
+      const t = tv.track || {};
+      const meta = cover.meta || {};
+      q("title").textContent = t.name || meta.title || "";
+      q("artist").textContent = t.artist || meta.artist || "";
+      const art = t.cover || (meta.artwork && meta.artwork.length ? meta.artwork[meta.artwork.length - 1].src : "");
+      if (art && q("cover").getAttribute("src") !== art) q("cover").setAttribute("src", art);
+      const c = t.uri && tv.cache[t.uri] || {};
+      const bg = c.image || art;
+      if (bg && q("bg").__img !== bg) {
+        q("bg").__img = bg;
+        q("bg").style.backgroundImage = 'url("' + bg + '")';
+        q("bg").style.filter = c.image ? "none" : "blur(40px) brightness(.6)";
+        q("bg").style.transform = c.image ? "none" : "scale(1.15)";
+      }
+      const playing = isPlaying();
+      q("play").innerHTML = svg(playing ? "pause" : "play", "5vh");
+      const on = (id) => {
+        const b = document.querySelector('[data-testid="' + id + '"]');
+        return !!b && (b.getAttribute("aria-checked") === "true" || b.getAttribute("aria-pressed") === "true" || /active|enabled/i.test(String(b.className)));
+      };
+      q("shuffle").style.color = on("npv-shuffle-button") ? "#1ed760" : "#fff";
+      q("repeat").style.color = on("npv-repeat-button") ? "#1ed760" : "#fff";
+      const l = npvLike();
+      q("like").style.color = l && (l.getAttribute("aria-checked") === "true" || /rimuovi|remove/i.test(l.getAttribute("aria-label"))) ? "#1ed760" : "#fff";
+      const lab = document.querySelector('[data-testid="npv-progress-bar-time-labels"]');
+      if (lab) {
+        const parts = lab.textContent.match(/-?\d+:\d{2}(?::\d{2})?/g) || [];
+        if (parts.length >= 2) {
+          const p = sec(parts[0]), d = Math.abs(sec(parts[parts.length - 1]));
+          q("pos").textContent = parts[0];
+          q("dur").textContent = parts[parts.length - 1].replace("-", "");
+          q("bar").style.width = (d ? Math.min(100, p / d * 100) : 0) + "%";
         }
       }
-      const bg = c.image || t.cover;
-      q("bg").style.backgroundImage = bg ? 'url("' + bg + '")' : "";
-      q("bg").style.filter = c.image ? "none" : "blur(40px) brightness(.5)";
-      q("bg").style.transform = c.image ? "none" : "scale(1.2)";
     }
     function nowTrack(t) {
       if (tv.track && tv.track.uri === t.uri) return;
       tv.track = t;
-      if (!document.body) return;
       loadVisuals(t).then(() => {
-        if (tv.track === t) decorateNpv();
+        if (tv.track === t) syncTv();
       });
+      syncTv();
     }
     function showTv() {
-      if (!tv.track) return false;
+      if (!document.body) return false;
       if (!tv.el) buildTv();
+      if (!npv()) openNpv();
       tv.shown = true;
       tv.el.style.display = "block";
-      paintTv();
+      focusEl = null;
+      syncTv();
+      setTimeout(() => {
+        const p = q("play");
+        if (p && tv.shown) setFocus(p);
+      }, 300);
       return true;
     }
     function hideTv() {
       if (!tv.shown) return false;
       tv.shown = false;
       tv.el.style.display = "none";
-      try {
-        q("video").pause();
-      } catch (e) {
-      }
+      tv.closedAt = Date.now();
+      focusEl = null;
+      closeNpv();
       lastActivity = Date.now();
       return true;
     }
-    function decorateNpv() {
-      const n = npv();
-      if (!n || !tv.track) return;
-      const c = tv.cache[tv.track.uri] || {};
-      const img = c.image;
-      const root = npvRoot();
-      if (!img || !root || root.__tzBg === img) return;
-      root.__tzBg = img;
-      const set = (el, k, v) => el.style.setProperty(k, v, "important");
-      set(root, "background-color", "#000");
-      set(root, "background-image", 'linear-gradient(180deg,rgba(0,0,0,.30) 0%,rgba(0,0,0,.55) 45%,rgba(0,0,0,.92) 100%),url("' + img + '")');
-      set(root, "background-size", "cover");
-      set(root, "background-position", "center 20%");
-      set(root, "background-repeat", "no-repeat");
-      const vw = window.innerWidth, vh = window.innerHeight;
-      [].forEach.call(root.querySelectorAll("*"), (d) => {
-        const r = d.getBoundingClientRect();
-        if (r.width < vw * 0.9 || r.height < vh * 0.3) return;
-        const cs = getComputedStyle(d);
-        if (cs.backgroundImage !== "none" || cs.backgroundColor !== "rgba(0, 0, 0, 0)" && cs.backgroundColor !== "transparent") {
-          set(d, "background-image", "none");
-          set(d, "background-color", "transparent");
-        }
-      });
-      log("schermata brano: sfondo con la foto del gruppo");
-    }
     setInterval(() => {
-      if (!npv() && Date.now() - lastActivity >= IDLE_MS && isPlaying() && openNpv()) log("schermata brano aperta (inattivita)");
-      decorateNpv();
-    }, 1500);
+      if (tv.shown) {
+        syncTv();
+        return;
+      }
+      const idle = Date.now() - lastActivity >= IDLE_MS;
+      if (npv() && Date.now() - (tv.closedAt || 0) > 1500) {
+        showTv();
+        log("modalita TV: aperta sopra la schermata del brano");
+        return;
+      }
+      if (idle && isPlaying()) {
+        showTv();
+        log("modalita TV: aperta per inattivita");
+      }
+    }, 1e3);
     try {
       sessionStorage.setItem("premium-banner-closed", "true");
     } catch (e) {
@@ -47526,6 +47561,7 @@ ${file}:${line}:${column}: ERROR: ${pluginText}${e.text}`;
       return cs.visibility !== "hidden" && cs.display !== "none" && Number(cs.opacity) !== 0;
     }
     function layerRoot() {
+      if (tv.shown && tv.el) return tv.el;
       const n = npv();
       if (n) return n;
       const d = [].filter.call(document.querySelectorAll('[role="dialog"],[aria-modal="true"]'), isVisible);
@@ -47677,6 +47713,7 @@ ${file}:${line}:${column}: ERROR: ${pluginText}${e.text}`;
         ae.blur();
         return true;
       }
+      if (hideTv()) return true;
       if (closeNpv()) return true;
       const d = [].filter.call(document.querySelectorAll('[role="dialog"],[aria-modal="true"]'), isVisible).pop();
       if (d) {
@@ -47712,8 +47749,7 @@ ${file}:${line}:${column}: ERROR: ${pluginText}${e.text}`;
       let done = false;
       const mediaKey = [K.PLAYPAUSE, K.PLAY, K.PAUSE, K.STOP, K.NEXT, K.PREV, K.FF, K.RW, K.BLUE].indexOf(k) >= 0;
       if (k === K.YELLOW) {
-        done = closeNpv() || openNpv();
-        focusEl = null;
+        done = hideTv() || showTv();
       } else if (k === K.BLUE) {
         panelVisible = !panelVisible;
         if (box) box.style.display = panelVisible ? "block" : "none";
@@ -47721,8 +47757,8 @@ ${file}:${line}:${column}: ERROR: ${pluginText}${e.text}`;
       } else if (k === K.PLAYPAUSE || k === K.PLAY || k === K.PAUSE || k === K.STOP) done = playPause();
       else if (k === K.NEXT || k === K.FF) done = inNpv("npv-skip-forward-button");
       else if (k === K.PREV || k === K.RW) done = inNpv("npv-skip-previous-button");
-      else if (k === K.RED && npv()) done = clickTid("npv-shuffle-button");
-      else if (k === K.GREEN && npv()) done = clickTid("npv-repeat-button");
+      else if (k === K.RED && (npv() || tv.shown)) done = clickTid("npv-shuffle-button");
+      else if (k === K.GREEN && (npv() || tv.shown)) done = clickTid("npv-repeat-button");
       else if (k === K.LEFT) done = move("left");
       else if (k === K.RIGHT) done = move("right");
       else if (k === K.UP) {
@@ -47737,8 +47773,7 @@ ${file}:${line}:${column}: ERROR: ${pluginText}${e.text}`;
           okHold.long = false;
         } else if (!okHold.long && Date.now() - okHold.at > 700) {
           okHold.long = true;
-          if (!closeNpv()) openNpv();
-          focusEl = null;
+          if (!hideTv()) showTv();
         }
         done = true;
       } else if (k === K.BACK) done = goBack();
