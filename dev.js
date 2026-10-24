@@ -1,4 +1,4 @@
-/* Tizenfy 1.6.1 per Samsung Tizen 5.0 (Chromium M63) */
+/* Tizenfy 1.6.2 per Samsung Tizen 5.0 (Chromium M63) */
 if (window.top === window && !window.__tzPolyfill) { window.__tzPolyfill = true;
 /**
  * core-js 3.38.1
@@ -46868,7 +46868,7 @@ ${file}:${line}:${column}: ERROR: ${pluginText}${e.text}`;
         box.style.display = panelVisible ? "block" : "none";
         document.body.appendChild(box);
       }
-      box.textContent = "TIZENFY 1.6.1\n" + lines.slice(-26).join("\n") + (errors.length ? "\n\nERRORI (" + errors.length + "):\n" + errors.slice(0, 7).join("\n") : "");
+      box.textContent = "TIZENFY 1.6.2\n" + lines.slice(-26).join("\n") + (errors.length ? "\n\nERRORI (" + errors.length + "):\n" + errors.slice(0, 7).join("\n") : "");
     }
     const log = (l) => {
       lines.push(l);
@@ -47181,13 +47181,9 @@ ${file}:${line}:${column}: ERROR: ${pluginText}${e.text}`;
         el.muted = adMode;
       } catch (e) {
       }
-      const rates = adMode ? [16, 8, 4, 2] : [1];
-      for (const r of rates) {
-        try {
-          el.playbackRate = r;
-          if (el.playbackRate === r) break;
-        } catch (e) {
-        }
+      try {
+        if (el.playbackRate !== 1) el.playbackRate = 1;
+      } catch (e) {
       }
     }
     function setAdMode(on, why) {
@@ -47195,7 +47191,7 @@ ${file}:${line}:${column}: ERROR: ${pluginText}${e.text}`;
       adMode = on;
       document.querySelectorAll("audio,video").forEach((el) => media.add(el));
       media.forEach(applyAd);
-      log(on ? "pubblicita: silenziata e accelerata (" + why + ")" : "pubblicita finita: audio normale");
+      log(on ? "pubblicita: audio disattivato (" + why + ")" : "pubblicita finita: audio normale");
     }
     function inspectPlayback(j) {
       try {
@@ -47219,7 +47215,7 @@ ${file}:${line}:${column}: ERROR: ${pluginText}${e.text}`;
       const el = e.target;
       if (!(el instanceof HTMLMediaElement)) return;
       media.add(el);
-      if (adMode && (el.playbackRate < 2 || !el.muted)) applyAd(el);
+      if (adMode && !el.muted) applyAd(el);
     }, true));
     const cover = { meta: null, state: "none", forced: false, hiddenUntil: 0 };
     const auth = { token: null, headers: null };
@@ -47392,8 +47388,8 @@ ${file}:${line}:${column}: ERROR: ${pluginText}${e.text}`;
       if (!tv.shown || !tv.el) return;
       const t = tv.track || {};
       const meta = cover.meta || {};
-      q("title").textContent = t.name || meta.title || "";
-      q("artist").textContent = t.artist || meta.artist || "";
+      q("title").textContent = adMode ? "Pubblicita" : t.name || meta.title || "";
+      q("artist").textContent = adMode ? "audio disattivato, la musica riprende alla fine" : t.artist || meta.artist || "";
       const art = t.cover || (meta.artwork && meta.artwork.length ? meta.artwork[meta.artwork.length - 1].src : "");
       if (art && q("cover").getAttribute("src") !== art) q("cover").setAttribute("src", art);
       const c = t.uri && tv.cache[t.uri] || {};
@@ -47457,6 +47453,23 @@ ${file}:${line}:${column}: ERROR: ${pluginText}${e.text}`;
       lastActivity = Date.now();
       return true;
     }
+    const watch = { t: -1, since: Date.now(), warned: false };
+    setInterval(() => {
+      let cur = -1;
+      media.forEach((m) => {
+        if (!m.paused) cur = Math.max(cur, m.currentTime);
+      });
+      if (cur < 0 || cur !== watch.t) {
+        watch.t = cur;
+        watch.since = Date.now();
+        watch.warned = false;
+        return;
+      }
+      if (!watch.warned && Date.now() - watch.since > 8e3) {
+        watch.warned = true;
+        log("riproduzione ferma da 8 s (pubblicita: " + (adMode ? "si" : "no") + ", tempo " + cur.toFixed(1) + " s)");
+      }
+    }, 2e3);
     setInterval(() => {
       if (tv.shown) {
         syncTv();
@@ -48046,16 +48059,8 @@ ${file}:${line}:${column}: ERROR: ${pluginText}${e.text}`;
     ],
     // Known Spotify ad-delivery URL patterns — requests matching these are blocked
     // returning an empty 200 so the player doesn't throw a network error.
-    adUrlPatterns: [
-      /\/ads\//i,
-      /\/ad-logic\//i,
-      /\/adeventtracker\//i,
-      /spclient\.wg\.spotify\.com\/ad-logic/i,
-      /audio-ak\.spotify\.com\/audio\/.*_ad/i,
-      /pagead/i,
-      /doubleclick\.net/i,
-      /googlesyndication/i
-    ],
+    adUrlPatterns: [],
+    // disattivato: sulla versione mobile bloccava il flusso delle pubblicita e fermava la riproduzione
     // Milliseconds to wait after muting before attempting skip
     // (tiny delay avoids Spotify detecting an instant 0-second ad play)
     adSkipDelay: 300,
